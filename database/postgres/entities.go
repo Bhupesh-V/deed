@@ -1,5 +1,13 @@
 package postgres
 
+// Constraint represents a standard table constraint structure captured via JSONB.
+type Constraint struct {
+	Name             string  `json:"name"`
+	Type             string  `json:"type"`
+	ReferencedTable  *string `json:"referenced_table"`  // Will be populated if Type == "FOREIGN KEY"
+	ReferencedColumn *string `json:"referenced_column"` // Will be populated if Type == "FOREIGN KEY"
+}
+
 // Column represents the metadata for a single table column.
 type Column struct {
 	Name                   string
@@ -15,6 +23,7 @@ type Column struct {
 	DtdIdentifier          string
 	GenerationExpression   *string // Can be null
 	MaximumCardinality     *int32  // Can be null
+	Constraints            []Constraint
 }
 
 // Table represents the parent table containing its metadata and columns.
@@ -29,7 +38,6 @@ type Table struct {
 // FlatRow maps directly to the columns returned by the new joined SQL query.
 // Order must match your SELECT statement exactly for RowToStructByPos.
 type FlatRow struct {
-	// TableSchema            string
 	TableName              string
 	ColumnName             string
 	ColumnDefault          *string
@@ -46,4 +54,5 @@ type FlatRow struct {
 	MaximumCardinality     *int32
 	HasIndexes             bool
 	HasTriggers            bool
+	ColumnConstraints      []byte // Captures raw jsonb bytes from the query
 }

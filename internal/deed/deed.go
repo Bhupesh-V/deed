@@ -4,6 +4,8 @@ import (
 	"context"
 	"deed/database/postgres"
 	"deed/internal/config"
+	"deed/internal/models"
+	"deed/internal/resolver"
 	"fmt"
 	"log"
 	"time"
@@ -58,9 +60,17 @@ func (d *Deed) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, e := range entities {
-		fmt.Println(e.Name)
+	tables := make(map[string]*models.Entity)
+	for _, t := range entities {
+		tables[t.Name] = &t
 	}
+
+	order, err := resolver.FindInsertionOrder(tables)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Safe Insertion Order: %v\n\n", order)
 
 	return nil
 }

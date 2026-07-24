@@ -1,16 +1,17 @@
 package models
 
 type Entity struct {
-	Schema      string
-	Name        string
-	Columns     []Column
-	Constraints []Constraint
+	Schema  string
+	Name    string
+	Columns []Column
+	// Constraints []Constraint
 }
 
 type Column struct {
 	Name string
 	// VARCHAR, NUMERIC, etc
-	Type DataType
+	Type       DataType
+	Constraint []Constraint
 }
 
 // DataType captures the full PostgreSQL type signature.
@@ -21,13 +22,10 @@ type DataType struct {
 }
 
 type Constraint struct {
-	Name string // Explicit constraint names are critical in Postgres
-	Type ConstraintType
-
-	// Fields populated based on the ConstraintType:
-	Columns    []string           // Used by PK, Unique, FK, and Exclusion
-	CheckExpr  string             // Used ONLY by Check (e.g., "price > 0")
-	ForeignKey *ForeignKeyDetails // Used ONLY by ForeignKey
+	Name             string
+	Type             string
+	ReferencedTable  *string
+	ReferencedColumn *string
 }
 
 type ForeignKeyDetails struct {
@@ -36,4 +34,3 @@ type ForeignKeyDetails struct {
 	OnDelete      string            // e.g., "CASCADE", "SET NULL"
 	OnUpdate      string            // e.g., "RESTRICT"
 }
-

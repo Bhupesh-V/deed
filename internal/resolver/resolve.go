@@ -1,4 +1,4 @@
-package main
+package resolver
 
 import (
 	"deed/internal/models"
@@ -6,9 +6,8 @@ import (
 )
 
 // FindInsertionOrder performs a Topological Sort (Kahn's Algorithm)
+// to resolve foreign key table dependencies.
 func FindInsertionOrder(tables map[string]*models.Entity) ([]string, error) {
-	// Build an explicit adjacency list and calculate accurate in-degrees
-	// graph[parent_table] = []child_tables
 	graph := make(map[string][]string)
 	inDegree := make(map[string]int)
 
@@ -18,29 +17,31 @@ func FindInsertionOrder(tables map[string]*models.Entity) ([]string, error) {
 		graph[name] = []string{}
 	}
 
-	// Populate the graph and track structural dependencies
-	for _, table := range tables {
-		for _, c := range table.Constraints {
-			// Match against your updated models.ForeignKey enum string
-			if c.Type == models.ForeignKey && c.ForeignKey != nil {
-				parent := c.ForeignKey.ParentTable
+	// Populate the graph by iterating over columns and their constraints
+	for tableName, table := range tables {
+		for _, col := range table.Columns {
+			for _, c := range col.Constraint {
+				// Check for foreign key constraints pointing to a valid referenced table
+				if c.Type == "FOREIGN KEY" && c.ReferencedTable != nil {
+					parent := *c.ReferencedTable
 
-				// Ignore self-referencing foreign keys (e.g., employee.manager_id -> employee.id)
-				// to prevent locking the table out of Kahn's queue.
-				if parent == table.Name {
-					continue
-				}
+					// Ignore self-referencing foreign keys (e.g. employee.manager_id -> employee.id)
+					// to avoid deadlock in Kahn's algorithm queue
+					if parent == tableName {
+						continue
+					}
 
-				// Only map dependencies to tables present in our execution scope
-				if _, exists := tables[parent]; exists {
-					graph[parent] = append(graph[parent], table.Name)
-					inDegree[table.Name]++
+					// Only track dependency if the parent table exists in our execution scope
+					if _, exists := tables[parent]; exists {
+						graph[parent] = append(graph[parent], tableName)
+						inDegree[tableName]++
+					}
 				}
 			}
 		}
 	}
 
-	// Collect all start nodes with an in-degree of 0
+	// Collect all root nodes (in-degree == 0)
 	var queue []string
 	for name, degree := range inDegree {
 		if degree == 0 {
@@ -50,13 +51,12 @@ func FindInsertionOrder(tables map[string]*models.Entity) ([]string, error) {
 
 	var order []string
 
-	// Process the queue using the pre-built lookup graph
+	// Process queue
 	for len(queue) > 0 {
 		curr := queue[0]
 		queue = queue[1:]
 		order = append(order, curr)
 
-		// Directly fetch and decrement the specific child nodes depending on this table
 		for _, child := range graph[curr] {
 			inDegree[child]--
 			if inDegree[child] == 0 {
@@ -65,7 +65,7 @@ func FindInsertionOrder(tables map[string]*models.Entity) ([]string, error) {
 		}
 	}
 
-	// Validate that all nodes were successfully sorted
+	// If order length does not match total tables, a circular dependency exists
 	if len(order) != len(tables) {
 		return nil, fmt.Errorf("circular dependency detected in database schema")
 	}

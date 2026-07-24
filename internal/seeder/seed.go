@@ -27,13 +27,12 @@ func (sd *Seeder) GenerateMockData(tables map[string]*models.Entity, order []str
 		table := tables[tableName]
 		fmt.Printf("\nGenerating data for table: [%s]\n", tableName)
 
-		// Create a quick lookup map of local_column -> parent_table for this table's foreign keys.
-		// This decouples the constraint matching logic from our row loops.
+		// Create a lookup map of local_column -> parent_table for this table's foreign keys.
 		fkLookup := make(map[string]string)
-		for _, c := range table.Constraints {
-			if c.Type == models.ForeignKey && c.ForeignKey != nil {
-				for localCol := range c.ForeignKey.ColumnMapping {
-					fkLookup[localCol] = c.ForeignKey.ParentTable
+		for _, col := range table.Columns {
+			for _, c := range col.Constraint {
+				if c.Type == "FOREIGN KEY" && c.ReferencedTable != nil {
+					fkLookup[col.Name] = *c.ReferencedTable
 				}
 			}
 		}
