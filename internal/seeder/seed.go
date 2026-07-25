@@ -31,7 +31,7 @@ func (sd *Seeder) GenerateMockData(tables map[string]*models.Entity, order []str
 		fkLookup := make(map[string]string)
 		for _, col := range table.Columns {
 			for _, c := range col.Constraint {
-				if c.Type == "FOREIGN KEY" && c.ReferencedTable != nil {
+				if c.Type == models.ForeignKey.String() && c.ReferencedTable != nil {
 					fkLookup[col.Name] = *c.ReferencedTable
 				}
 			}
