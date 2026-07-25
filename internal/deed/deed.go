@@ -62,7 +62,9 @@ func (d *Deed) Start(ctx context.Context) error {
 		tables[t.Name] = &t
 	}
 
-	erGroups, err := resolver.FindInsertionOrder(tables)
+	r := resolver.New()
+
+	erGroups, err := r.FindInsertionOrder(tables)
 	if err != nil {
 		return err
 	}
@@ -85,6 +87,10 @@ func (d *Deed) Start(ctx context.Context) error {
 			fmt.Printf("\ttable: %v, no.of columns:%d, total FKs: %d\n\n", table, noTables, fk)
 		}
 	}
+
+	lookUp := "app"
+	fmt.Printf("\n--- Dependencies for '%s' ---\n", lookUp)
+	r.GetDependencyTree(lookUp, tables, "", true, 0, nil)
 
 	return nil
 }
