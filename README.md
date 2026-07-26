@@ -23,6 +23,20 @@
 
 ## Usage
 
+### Ideology
+
+Since the choice of how you write SQL queries and indexes completely depends on how your UI/UX looks like, which changes often, **each deed run is supposed to be targetted, meaning you don't ingest data in your whole schema in one go and never come back.**
+
+Ideal workflow:
+
+1. Start a container with your up-to-date schema applied.
+2. Have list of tables you want to generate data for, these are the tables that you have to optimise your queries/indexes for.
+3. Seed the data using deed.
+4. Rewrite and test your queries.
+5. Destroy the db container.
+
+Deed can definitely be used to fill up your schema with test data and by extension be used to demo your apps, however that was not the original intent of the author while building it.
+
 ### Deed Config
 
 deed works well if you already have a config setup as per your use-case.
