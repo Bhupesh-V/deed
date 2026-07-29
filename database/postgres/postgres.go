@@ -4,6 +4,7 @@ import (
 	"context"
 	"deed/database"
 	"deed/internal/models"
+	"encoding/csv"
 	"encoding/json"
 	"log"
 
@@ -19,6 +20,33 @@ type postgres struct {
 func New(con *pgxpool.Pool) database.Database {
 	repo := &postgres{pg: con}
 	return repo
+}
+
+type FileRowSource struct {
+	reader *csv.Reader
+	next   []any
+	err    error
+}
+
+func (s *FileRowSource) Next() bool {
+	record, err := s.reader.Read()
+	if err != nil {
+		s.err = err
+		return false
+	}
+	s.next = []any{record[0], record[1]}
+	return true
+}
+
+func (s *FileRowSource) Values() ([]any, error) {
+	return s.next, nil
+}
+
+func (s *FileRowSource) Err() error {
+	if s.err.Error() == "EOF" {
+		return nil
+	}
+	return s.err
 }
 
 func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
@@ -183,8 +211,13 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 	return entities, nil
 }
 
-func (p *postgres) BulkInsert(ctx context.Context) {
-	panic("not implemented") // TODO: Implement
+func (p *postgres) BulkInsert(ctx context.Context) error {
+	_, err := p.pg.CopyFrom(ctx, pgx.Identifier{"table"}, []string{"col"}, &FileRowSource{})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // A 50% faster query to get entities and their metadata

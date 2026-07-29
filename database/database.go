@@ -7,5 +7,5 @@ import (
 
 type Database interface {
 	GetEntities(context.Context) ([]models.Entity, error)
-	BulkInsert(ctx context.Context)
+	BulkInsert(ctx context.Context) error
 }

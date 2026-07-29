@@ -9,15 +9,54 @@ import (
 type Resolver struct {
 	// DependencyGraph maps ParentTable -> []ChildTables
 	dependencyGraph map[string][]string
+	// Dependencies maps TableName -> Set of AllPrerequisiteTables
+	Dependencies map[string]map[string]struct{}
 }
 
 func New() *Resolver {
 	return &Resolver{
 		dependencyGraph: make(map[string][]string),
+		Dependencies:    make(map[string]map[string]struct{}),
 	}
 }
 
-func (r *Resolver) FindInsertionOrder(tables map[string]*models.Entity) ([][]string, error) {
+// GetDependenciesForTables returns a map containing all unique dependencies for the given list of tables.
+func (r *Resolver) GetDependenciesForTables(tables []string) map[string]struct{} {
+	result := make(map[string]struct{})
+
+	for _, table := range tables {
+		if deps, exists := r.Dependencies[table]; exists {
+			for dep := range deps {
+				result[dep] = struct{}{}
+			}
+		}
+	}
+
+	return result
+}
+
+func (r *Resolver) FindIngestionOrder(tables map[string]*models.Entity, lookups []string) ([][]string, error) {
+	// Build lookupSet with requested tables AND all their recursive dependencies
+	lookupSet := make(map[string]struct{})
+
+	if len(lookups) > 0 {
+		// Leverage GetDependenciesForTables to pull all recursive ancestor tables
+		deps := r.GetDependenciesForTables(lookups)
+		for dep := range deps {
+			lookupSet[dep] = struct{}{}
+		}
+		// Also include the requested tables themselves
+		for _, l := range lookups {
+			lookupSet[l] = struct{}{}
+		}
+	} else {
+		// If no lookups provided, target all tables
+		for t := range tables {
+			lookupSet[t] = struct{}{}
+		}
+	}
+
+	// Standard topological sort across the full schema
 	graph := r.dependencyGraph
 	inDegree := make(map[string]int)
 
@@ -74,7 +113,10 @@ func (r *Resolver) FindInsertionOrder(tables map[string]*models.Entity) ([][]str
 		var nextQueue []string
 
 		for _, curr := range queue {
-			currentCluster = append(currentCluster, curr)
+			// Filter using the expanded lookupSet (target + recursive prerequisites)
+			if _, exists := lookupSet[curr]; exists {
+				currentCluster = append(currentCluster, curr)
+			}
 			processedCount++
 
 			for _, child := range graph[curr] {
@@ -86,7 +128,11 @@ func (r *Resolver) FindInsertionOrder(tables map[string]*models.Entity) ([][]str
 		}
 
 		sort.Strings(nextQueue)
-		clusters = append(clusters, currentCluster)
+
+		if len(currentCluster) > 0 {
+			clusters = append(clusters, currentCluster)
+		}
+
 		queue = nextQueue
 	}
 	// fmt.Println(processedCount)
@@ -99,12 +145,19 @@ func (r *Resolver) FindInsertionOrder(tables map[string]*models.Entity) ([][]str
 	return clusters, nil
 }
 
-// GetDependencyTree recursively prints all parent tables with clean tree alignment.
+// GetDependencyTree recursively prints all parent tables and populates r.Dependencies.
 func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models.Entity, prefix string, isLast bool, depth int, visited map[string]bool) {
 	if visited == nil {
 		visited = make(map[string]bool)
 	}
 
+	// Ensure map entry exists for this table
+	if _, exists := r.Dependencies[tableName]; !exists {
+		r.Dependencies[tableName] = make(map[string]struct{})
+	}
+
+	// If already visited, stop printing to avoid infinite loops,
+	// but the dependencies for this table are already stored in r.Dependencies[tableName].
 	if visited[tableName] {
 		return
 	}
@@ -140,6 +193,8 @@ func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models
 				if parent != tableName && !seenParents[parent] {
 					seenParents[parent] = true
 					parents = append(parents, Edge{Parent: parent})
+					// Record direct dependency
+					r.Dependencies[tableName][parent] = struct{}{}
 				}
 			}
 		}
@@ -166,5 +221,12 @@ func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models
 		}
 
 		r.GetDependencyTree(p.Parent, tables, childPrefix, isLastParent, depth+1, branchVisited)
+
+		// Always merge parent's transitive dependencies into the current table
+		if parentDeps, ok := r.Dependencies[p.Parent]; ok {
+			for dep := range parentDeps {
+				r.Dependencies[tableName][dep] = struct{}{}
+			}
+		}
 	}
 }

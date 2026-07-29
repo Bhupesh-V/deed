@@ -57,26 +57,35 @@ func (d *Deed) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	tables := make(map[string]*models.Entity)
+	allEntities := make(map[string]*models.Entity)
 	for _, t := range entities {
-		tables[t.Name] = &t
+		allEntities[t.Name] = &t
 	}
 
 	r := resolver.New()
+	lookUps := []string{"app"}
 
-	erGroups, err := r.FindInsertionOrder(tables)
-	if err != nil {
-		return err
+	// Populate r.Dependencies map
+	for _, target := range lookUps {
+		fmt.Printf("\n--- Dependencies for '%s' ---\n", target)
+		r.GetDependencyTree(target, allEntities, "", true, 0, nil)
 	}
 
-	// test
+	fmt.Printf("\n--- Getting Ingestion Order ---\n\n")
+
+	// Find grouped ingestion order for all tables in lookUps AND all its prerequisites
+	erGroups, err := r.FindIngestionOrder(allEntities, lookUps)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for i, g := range erGroups {
 		fmt.Printf("Group %d\n", i)
 		for _, table := range g {
-			noTables := len(tables[table].Columns)
+			noTables := len(allEntities[table].Columns)
 
 			var fk int
-			for _, col := range tables[table].Columns {
+			for _, col := range allEntities[table].Columns {
 				for _, ctr := range col.Constraint {
 					if ctr.Type == models.ForeignKey.String() {
 						fk++
@@ -87,10 +96,6 @@ func (d *Deed) Start(ctx context.Context) error {
 			fmt.Printf("\ttable: %v, no.of columns:%d, total FKs: %d\n\n", table, noTables, fk)
 		}
 	}
-
-	lookUp := "app"
-	fmt.Printf("\n--- Dependencies for '%s' ---\n", lookUp)
-	r.GetDependencyTree(lookUp, tables, "", true, 0, nil)
 
 	return nil
 }

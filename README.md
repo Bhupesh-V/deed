@@ -2,22 +2,26 @@
 
 ## Why?
 
-- Your database is a heavy lifter, i.e you now have to opimise your **SQL queries** and **indexes** (congrats on winning in capitalism).
+- Your database is a heavy lifter, i.e you now have to opimise your **SQL queries** and **indexes**.
 - You don't have access to production data due to compliance issues.
 - You are a master procastinator on load testing your APIs.
-
-<!-- Primary personas (in order):
-
-1. Database Engineers.
-2. Data Engineers, Backend Engineers
-3. DevOps & SRE folks. -->
 
 ## Why not?
 
 - You don't know how to use a modern RDBMS.
-<!-- - If I spot any issues on recreating postgres functionality from scratch, I'll put you in my hitlist. -->
+- Strict validation of business data on frontend.
 
-## Supported databases
+## For whom?
+
+1. Database Engineers.
+2. Data Engineers, Backend Engineers.
+3. DevOps Engineers & SREs.
+
+## Installation
+
+TODO
+
+## Supported Databases
 
 - Postgres
 
@@ -25,17 +29,17 @@
 
 ### Ideology
 
-Since the choice of how you write SQL queries and indexes completely depends on how your UI/UX looks like, which changes often, **each deed run is supposed to be targetted, meaning you don't ingest data in your whole schema in one go and never come back.**
+Since the choice of how you write SQL queries and indexes completely depends on how your UI/UX looks like (which changes often), **each deed run is supposed to be targetted, meaning you don't ingest data in your whole schema in one go and never look back.**
 
-Ideal workflow:
+Instead, your ideal workflow should look like,
 
 1. Start a container with your up-to-date schema applied.
 2. Have list of tables you want to generate data for, these are the tables that you have to optimise your queries/indexes for.
 3. Seed the data using deed.
-4. Rewrite and test your queries.
+4. Rewrite and test your queries/indexes.
 5. Destroy the db container.
 
-Deed can definitely be used to fill up your schema with test data and by extension be used to demo your apps, however that was not the original intent of the author while building it.
+Deed can definitely be used to fill up your schema with test data and by extension be used to demo your apps, however that was not my original intent while building it.
 
 ### Deed Config
 
@@ -63,9 +67,7 @@ deed seed \
  --config=deed.yaml
 ```
 
-
-### Dry run
+Sample Output
 
 ```
-deed seed --url "..." --tables=app --count=1000000 --dry
 ```
