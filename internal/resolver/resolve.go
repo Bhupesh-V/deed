@@ -71,26 +71,20 @@ func (r *Resolver) FindIngestionOrder(tables map[string]*models.Entity, lookups 
 
 	for tableName, table := range tables {
 		for _, col := range table.Columns {
-			for _, c := range col.Constraint {
-				if c.Type == models.ForeignKey.String() && c.ReferencedTable != nil && *c.ReferencedTable != "" {
-					parent := *c.ReferencedTable
+			parent, _, isFK := col.GetFK()
+			if !isFK || parent == tableName {
+				continue
+			}
 
-					// Skip self-referencing foreign keys for now
-					if parent == tableName {
-						continue
-					}
+			// Ensure parent table is within execution scope
+			if _, exists := tables[parent]; exists {
+				edgeKey := fmt.Sprintf("%s->%s", parent, tableName)
 
-					// Ensure parent table is within execution scope
-					if _, exists := tables[parent]; exists {
-						edgeKey := fmt.Sprintf("%s->%s", parent, tableName)
-
-						// Only add edge and increment inDegree ONCE per table pair
-						if !seenEdges[edgeKey] {
-							seenEdges[edgeKey] = true
-							graph[parent] = append(graph[parent], tableName)
-							inDegree[tableName]++
-						}
-					}
+				// Only add edge and increment inDegree ONCE per table pair
+				if !seenEdges[edgeKey] {
+					seenEdges[edgeKey] = true
+					graph[parent] = append(graph[parent], tableName)
+					inDegree[tableName]++
 				}
 			}
 		}
@@ -187,16 +181,12 @@ func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models
 	seenParents := make(map[string]bool)
 
 	for _, col := range entity.Columns {
-		for _, c := range col.Constraint {
-			if c.Type == models.ForeignKey.String() && c.ReferencedTable != nil && *c.ReferencedTable != "" {
-				parent := *c.ReferencedTable
-				if parent != tableName && !seenParents[parent] {
-					seenParents[parent] = true
-					parents = append(parents, Edge{Parent: parent})
-					// Record direct dependency
-					r.Dependencies[tableName][parent] = struct{}{}
-				}
-			}
+		parent, _, isFK := col.GetFK()
+		if isFK && parent != tableName && !seenParents[parent] {
+			seenParents[parent] = true
+			parents = append(parents, Edge{Parent: parent})
+			// Record direct dependency
+			r.Dependencies[tableName][parent] = struct{}{}
 		}
 	}
 

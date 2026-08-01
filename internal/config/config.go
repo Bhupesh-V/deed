@@ -1,5 +1,10 @@
 package config
 
 type Config struct {
-	DbUrl string
+	DSN  string
+	Name string
+}
+
+func New() *Config {
+	return &Config{}
 }

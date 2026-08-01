@@ -2,58 +2,29 @@ package deed
 
 import (
 	"context"
-	"deed/database/postgres"
+	"deed/database"
 	"deed/internal/config"
 	"deed/internal/models"
 	"deed/internal/resolver"
+	"deed/internal/seeder"
 	"fmt"
 	"log"
-	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Deed struct {
+	db     database.Database
 	config *config.Config
 }
 
-func New(dburl string) *Deed {
+func New(db database.Database, cfg *config.Config) *Deed {
 	return &Deed{
-		&config.Config{
-			DbUrl: dburl,
-		},
+		db:     db,
+		config: cfg,
 	}
 }
 
 func (d *Deed) Start(ctx context.Context) error {
-	connStr := d.config.DbUrl
-
-	config, err := pgxpool.ParseConfig(connStr)
-	if err != nil {
-		log.Fatalf("Failed to parse config: %v", err)
-	}
-
-	// Maximum number of connections in the pool
-	config.MaxConns = 20
-	// Minimum number of idle connections to keep alive
-	config.MinConns = 5
-	// Max time a connection can exist before being recreated
-	config.MaxConnLifetime = 30 * time.Minute
-	// Max time an idle connection can sit before being closed
-	config.MaxConnIdleTime = 5 * time.Minute
-	// Interval to check if idle connections are still healthy
-	config.HealthCheckPeriod = 1 * time.Minute
-	//Configure underlying pgx connection parameters if needed
-	config.ConnConfig.ConnectTimeout = 5 * time.Second
-
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		log.Fatalf("Failed to create connection pool: %v", err)
-	}
-	defer pool.Close()
-
-	pg := postgres.New(pool)
-	entities, err := pg.GetEntities(ctx)
+	entities, err := d.db.GetEntities(ctx)
 	if err != nil {
 		return err
 	}
@@ -63,7 +34,7 @@ func (d *Deed) Start(ctx context.Context) error {
 	}
 
 	r := resolver.New()
-	lookUps := []string{"app"}
+	lookUps := []string{"delivery_proofs"}
 
 	// Populate r.Dependencies map
 	for _, target := range lookUps {
@@ -79,21 +50,97 @@ func (d *Deed) Start(ctx context.Context) error {
 		log.Fatal(err)
 	}
 
+	s := seeder.New()
+
+	rules := map[string]models.GenerationRule{
+		// Level 1: users
+		"users.email": {
+			Type:         "regex",
+			RegexPattern: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`,
+		},
+		"users.username": {
+			Type:         "regex",
+			RegexPattern: `^[a-zA-Z0-9_-]{3,30}$`,
+		},
+		"users.password_hash": {
+			Type:         "regex",
+			RegexPattern: `^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9./]{53}$`,
+		},
+
+		// Level 2: orders
+		"orders.order_number": {
+			Type:         "regex",
+			RegexPattern: `^ORD-[0-9]{8}-[0-9]{4}$`,
+		},
+		"orders.status": {
+			Type:         "regex",
+			RegexPattern: `^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$`,
+		},
+		"orders.total_amount": {
+			Type:         "regex",
+			RegexPattern: `^[0-9]{1,10}\.[0-9]{2}$`,
+		},
+
+		// Level 3: shipments
+		"shipments.tracking_number": {
+			Type:         "regex",
+			RegexPattern: `^[A-Z0-9]{8,100}$`,
+		},
+
+		// Level 4: shipment_tracking_events
+		"shipment_tracking_events.location": {
+			Type:         "regex",
+			RegexPattern: `^[A-Za-z\s.-]+,\s*[A-Z]{2}(\s*[0-9]{5})?$`,
+		},
+		"shipment_tracking_events.status_description": {
+			Type:         "regex",
+			RegexPattern: `^[A-Za-z0-9\s.,-]{1,255}$`,
+		},
+
+		// Level 5: delivery_proofs
+		"delivery_proofs.recipient_signature_url": {
+			Type:         "regex",
+			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|svg)$`,
+		},
+		"delivery_proofs.photo_url": {
+			Type:         "regex",
+			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|webp)$`,
+		},
+
+		// Level 6: proof_verifications
+		"proof_verifications.confidence_score": {
+			Type:         "regex",
+			RegexPattern: `^(100\.00|[0-9]{1,2}\.[0-9]{2})$`,
+		},
+	}
+
 	for i, g := range erGroups {
 		fmt.Printf("Group %d\n", i)
 		for _, table := range g {
-			noTables := len(allEntities[table].Columns)
 
-			var fk int
-			for _, col := range allEntities[table].Columns {
-				for _, ctr := range col.Constraint {
-					if ctr.Type == models.ForeignKey.String() {
-						fk++
-					}
-				}
+			entity := allEntities[table]
+
+			colNames, stream := s.CreateStream(entity, 100, rules)
+
+			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
+			insertedRows, err := d.db.BulkInsert(ctx, entity, colNames, stream)
+			if err != nil {
+				return err
 			}
-			// for Group 0: total FK count should be 0, proving our sorting worked
-			fmt.Printf("\ttable: %v, no.of columns:%d, total FKs: %d\n\n", table, noTables, fk)
+
+			fmt.Printf("✅ Successfully inserted %d rows into %s\n", insertedRows, entity.Name)
+			// noTables := len(allEntities[table].Columns)
+
+			// var fk int
+			// for _, col := range allEntities[table].Columns {
+			// 	for _, ctr := range col.Constraint {
+			// 		if ctr.Type == models.ForeignKey.String() {
+			// 			fk++
+			// 		}
+			// 	}
+			// }
+			// // for Group 0: total FK count should be 0, proving our sorting worked
+			// fmt.Printf("\ttable: %v, no.of columns:%d, total FKs: %d\n\n", table, noTables, fk)
 		}
 	}
 

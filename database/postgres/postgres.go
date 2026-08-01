@@ -4,9 +4,11 @@ import (
 	"context"
 	"deed/database"
 	"deed/internal/models"
-	"encoding/csv"
+	"deed/internal/stream"
 	"encoding/json"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,36 +19,26 @@ type postgres struct {
 	pg *pgxpool.Pool
 }
 
-func New(con *pgxpool.Pool) database.Database {
-	repo := &postgres{pg: con}
-	return repo
-}
-
-type FileRowSource struct {
-	reader *csv.Reader
-	next   []any
-	err    error
-}
-
-func (s *FileRowSource) Next() bool {
-	record, err := s.reader.Read()
+func New(ctx context.Context, dsn string) (database.Database, error) {
+	config, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		s.err = err
-		return false
+		return nil, fmt.Errorf("failed to parse pgx config: %w", err)
 	}
-	s.next = []any{record[0], record[1]}
-	return true
-}
 
-func (s *FileRowSource) Values() ([]any, error) {
-	return s.next, nil
-}
+	config.MaxConns = 20
+	config.MinConns = 5
+	config.MaxConnLifetime = 30 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
+	config.HealthCheckPeriod = 1 * time.Minute
+	config.ConnConfig.ConnectTimeout = 5 * time.Second
 
-func (s *FileRowSource) Err() error {
-	if s.err.Error() == "EOF" {
-		return nil
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pgx pool: %w", err)
 	}
-	return s.err
+
+	repo := &postgres{pg: pool}
+	return repo, nil
 }
 
 func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
@@ -211,15 +203,6 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 	return entities, nil
 }
 
-func (p *postgres) BulkInsert(ctx context.Context) error {
-	_, err := p.pg.CopyFrom(ctx, pgx.Identifier{"table"}, []string{"col"}, &FileRowSource{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // A 50% faster query to get entities and their metadata
 func (p *postgres) getentitiesqueryV2() string {
 	query := `
@@ -305,3 +288,34 @@ func (p *postgres) getentitiesqueryV2() string {
 
 	return query
 }
+
+func (p *postgres) BulkInsert(
+	ctx context.Context,
+	entity *models.Entity,
+	columns []string,
+	stream stream.RowStream,
+) (int64, error) {
+	// Convert databulk.RowStream -> pgx.CopyFromSource
+	adapter := &pgxCopyAdapter{stream: stream}
+
+	insertedRows, err := p.pg.CopyFrom(
+		ctx,
+		pgx.Identifier{entity.Name},
+		columns,
+		adapter,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("postgres CopyFrom failed for table %s: %w", entity.Name, err)
+	}
+
+	return insertedRows, nil
+}
+
+// Private adapter wrapping databulk.RowStream into pgx.CopyFromSource
+type pgxCopyAdapter struct {
+	stream stream.RowStream
+}
+
+func (a *pgxCopyAdapter) Next() bool             { return a.stream.Next() }
+func (a *pgxCopyAdapter) Values() ([]any, error) { return a.stream.Values() }
+func (a *pgxCopyAdapter) Err() error             { return a.stream.Err() }

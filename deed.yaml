@@ -1,16 +1,20 @@
 version: "1"
 
+database:
+  name: postgres
+
 global:
   ignore_tables:
     - migrations
 
-tables:
-  users:
-    count: 100
-    columns:
-      username:
-        type: regex
-        pattern: "^[a-z0-9_]{3,16}$"
+rules:
+  tables:
+    users:
+      count: 100
+      columns:
+        username:
+          type: regex
+          pattern: "^[a-z0-9_]{3,16}$"
 
       # status:
       #   type: enum
@@ -25,9 +29,3 @@ tables:
       #   type: datetime
       #   start: "2023-01-01"
       #   end: "2026-12-31"
-
-      bio:
-        type: regex
-        pattern: "[A-Za-z0-9 ]{20,50}"
-        # nullable: true
-        # null_percentage: 20
