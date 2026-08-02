@@ -52,19 +52,6 @@
                     }
                 }
             },
-            "shipment_tracking_events": {
-                "count": 100,
-                "columns": {
-                    "location": {
-                        "type": "regex",
-                        "pattern": "^[A-Za-z\\s.-]+,\\s*[A-Z]{2}(\\s*[0-9]{5})?$"
-                    },
-                    "status_description": {
-                        "type": "regex",
-                        "pattern": "^[A-Za-z0-9\\s.,-]{1,255}$"
-                    }
-                }
-            },
             "delivery_proofs": {
                 "columns": {
                     "recipient_signature_url": {

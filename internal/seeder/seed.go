@@ -24,7 +24,7 @@ func New(db database.Database) *Seeder {
 	}
 }
 
-// TableStream implements databulk.RowStream
+// TableStream implements stream.RowStream
 type TableStream struct {
 	seeder       *Seeder
 	targetCols   []models.Column
@@ -32,7 +32,7 @@ type TableStream struct {
 	totalCount   int
 	currentIndex int
 	currentRow   []any
-	fetcher      *fkFetcher
+	fetcher      *fetcher
 	err          error
 }
 
@@ -59,7 +59,7 @@ func (s *Seeder) CreateStream(
 		rules:        rules,
 		totalCount:   count,
 		currentIndex: 0,
-		fetcher:      newFKFetcher(s.db, s.batchSize),
+		fetcher:      newFetcher(s.db, s.batchSize),
 	}
 
 	return colNames, stream
@@ -92,7 +92,6 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		}
 	}
 
-	// Foreign Key Lookup from Seeder Memory Cache
 	if parentTable, _, ok := col.GetFK(); ok {
 		val, err := ts.fetcher.GetNextID(parentTable, col.Name)
 		if err != nil {
@@ -115,6 +114,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		return rowIndex%2 == 0
 
 	case strings.Contains(baseType, "timestamp"), strings.Contains(baseType, "timestampz"), strings.Contains(baseType, "date"):
+		// TODO: incremental dates
 		return gofakeit.Date()
 
 	case strings.Contains(baseType, "numeric"), strings.Contains(baseType, "decimal"), strings.Contains(baseType, "float"), strings.Contains(baseType, "real"):
@@ -133,7 +133,11 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		} else if col.Type.Length != nil {
 			return gofakeit.LetterN(uint(*col.Type.Length))
 		}
-		return fmt.Sprintf("%s_%d", col.Name, rowIndex)
+
+	case strings.Contains(baseType, "varchar"):
+		if col.Type.Length != nil {
+			return gofakeit.Sentence(int(*col.Type.Length))
+		}
 
 	default:
 		// Default string generator with precision clipping if VARCHAR(n) limit exists
@@ -143,4 +147,6 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		}
 		return val
 	}
+
+	return ""
 }

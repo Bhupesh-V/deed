@@ -71,29 +71,37 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 		SELECT
 			tc.table_schema,
 			tc.table_name,
-			kcu.column_name,
+			ccu.column_name,
 			jsonb_agg(jsonb_build_object(
 				'name', tc.constraint_name,
 				'type', tc.constraint_type,
-				'referenced_table', ccu.table_name,
-				'referenced_column', ccu.column_name
+				'check_clause', ch.check_clause,
+				'referenced_table', ref_ccu.table_name,
+				'referenced_column', ref_ccu.column_name
 			)) AS constraints
 		FROM
 			information_schema.table_constraints AS tc
+		-- Joins all constraint types to their columns (including CHECK)
 		JOIN
-			information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
+			information_schema.constraint_column_usage AS ccu
+			ON tc.constraint_name = ccu.constraint_name
+			AND tc.table_schema = ccu.constraint_schema
+		-- Fetches the actual check expression for CHECK constraints
+		LEFT JOIN
+			information_schema.check_constraints AS ch
+			ON tc.constraint_name = ch.constraint_name
+			AND tc.table_schema = ch.constraint_schema
+		-- Handles foreign key reference metadata
 		LEFT JOIN
 			information_schema.referential_constraints AS rc
 			ON tc.constraint_name = rc.constraint_name
 			AND tc.table_schema = rc.constraint_schema
 		LEFT JOIN
-			information_schema.constraint_column_usage AS ccu
-			ON rc.unique_constraint_name = ccu.constraint_name
-			AND rc.unique_constraint_schema = ccu.table_schema
+			information_schema.constraint_column_usage AS ref_ccu
+			ON rc.unique_constraint_name = ref_ccu.constraint_name
+			AND rc.unique_constraint_schema = ref_ccu.table_schema
 		GROUP BY
-			tc.table_schema, tc.table_name, kcu.column_name
+			tc.table_schema, tc.table_name, ccu.column_name
 	) AS cons
 		ON c.table_schema = cons.table_schema
 		AND c.table_name = cons.table_name
@@ -297,7 +305,7 @@ func (p *postgres) getentitiesqueryV2() string {
 	return query
 }
 
-func (p *postgres) BulkInsert(
+func (p *postgres) Ingest(
 	ctx context.Context,
 	entity *models.Entity,
 	columns []string,
@@ -319,7 +327,7 @@ func (p *postgres) BulkInsert(
 	return insertedRows, nil
 }
 
-func (p *postgres) GetRandomIDs(
+func (p *postgres) SampleSavedIDs(
 	ctx context.Context,
 	tableName string,
 	columnName string,

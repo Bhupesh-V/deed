@@ -6,15 +6,15 @@ import (
 	"fmt"
 )
 
-type fkFetcher struct {
+type fetcher struct {
 	db        database.Database
 	batchSize int
 	buffers   map[string][]any
 	cursors   map[string]int
 }
 
-func newFKFetcher(db database.Database, batchSize int) *fkFetcher {
-	return &fkFetcher{
+func newFetcher(db database.Database, batchSize int) *fetcher {
+	return &fetcher{
 		db:        db,
 		batchSize: batchSize,
 		buffers:   make(map[string][]any),
@@ -22,14 +22,14 @@ func newFKFetcher(db database.Database, batchSize int) *fkFetcher {
 	}
 }
 
-func (f *fkFetcher) GetNextID(table, column string) (any, error) {
+func (f *fetcher) GetNextID(table, column string) (any, error) {
 	key := fmt.Sprintf("%s.%s", table, column)
 
 	cursor := f.cursors[key]
 	buffer := f.buffers[key]
 
 	if cursor >= len(buffer) {
-		freshBatch, err := f.db.GetRandomIDs(context.Background(), table, column, f.batchSize)
+		freshBatch, err := f.db.SampleSavedIDs(context.Background(), table, column, f.batchSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch foreign key batch for %s: %w", key, err)
 		}

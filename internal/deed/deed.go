@@ -81,7 +81,7 @@ func (d *Deed) Start(ctx context.Context) error {
 			colNames, stream := s.CreateStream(entity, rowCount, tableRules)
 
 			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
-			insertedRows, err := d.db.BulkInsert(ctx, entity, colNames, stream)
+			insertedRows, err := d.db.Ingest(ctx, entity, colNames, stream)
 			if err != nil {
 				return err
 			}
