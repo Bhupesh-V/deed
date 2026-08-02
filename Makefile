@@ -5,7 +5,7 @@ DB_PASSWORD = my_secure_password
 DB_NAME = deed-commerce
 DB_PORT = 5433
 DB_VOLUME = deed-postgres-v1
-MIGRATIONS_PATH = tests/schemas/postgres
+MIGRATIONS_PATH = tests/postgres/migrations
 DB_URL = "postgres://$(DB_USER):$(DB_PASSWORD)@127.0.0.1:$(DB_PORT)/$(DB_NAME)?sslmode=disable"
 
 .PHONY: env clean db-up db-down db-logs migrate-up migrate-down migrate-version migrate-force help
@@ -78,3 +78,11 @@ migrate-version:
 migrate-force:
 	@if [ -z "$(V)" ]; then echo "Error: V is required. Example: make migrate-force V=1"; exit 1; fi
 	migrate -path $(MIGRATIONS_PATH) -database $(DB_URL) force $(V)
+
+## test: Run the seed command with parameters matching the local DB setup
+test:
+	go run main.go seed \
+		--dsn $(DB_URL) \
+		--tables=delivery_proofs \
+		--count=1000000 \
+		--config=tests/postgres/deed.json

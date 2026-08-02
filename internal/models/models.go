@@ -66,7 +66,5 @@ type GenerationRule struct {
 	Type         string // "regex", "random_string", "random_int", "email", "foreign_key", "custom"
 	Min          int
 	Max          int
-	Prefix       string
 	RegexPattern string
-	CustomSQL    string
 }

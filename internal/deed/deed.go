@@ -14,12 +14,14 @@ import (
 type Deed struct {
 	db     database.Database
 	config *config.Config
+	input  *models.Input
 }
 
-func New(db database.Database, cfg *config.Config) *Deed {
+func New(db database.Database, cfg *config.Config, input *models.Input) *Deed {
 	return &Deed{
 		db:     db,
 		config: cfg,
+		input:  input,
 	}
 }
 
@@ -34,7 +36,7 @@ func (d *Deed) Start(ctx context.Context) error {
 	}
 
 	r := resolver.New()
-	lookUps := []string{"delivery_proofs"}
+	lookUps := d.input.Tables
 
 	// Populate r.Dependencies map
 	for _, target := range lookUps {
@@ -42,7 +44,7 @@ func (d *Deed) Start(ctx context.Context) error {
 		r.GetDependencyTree(target, allEntities, "", true, 0, nil)
 	}
 
-	fmt.Printf("\n--- Getting Ingestion Order ---\n\n")
+	fmt.Printf("\n--- Starting Ingestion ---\n\n")
 
 	// Find grouped ingestion order for all tables in lookUps AND all its prerequisites
 	erGroups, err := r.FindIngestionOrder(allEntities, lookUps)
@@ -52,75 +54,31 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	s := seeder.New(d.db)
 
-	rules := map[string]models.GenerationRule{
-		// Level 1: users
-		"email": {
-			Type:         "regex",
-			RegexPattern: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`,
-		},
-		"username": {
-			Type:         "regex",
-			RegexPattern: `^[a-zA-Z0-9_-]{3,30}$`,
-		},
-		"password_hash": {
-			Type:         "regex",
-			RegexPattern: `^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9./]{53}$`,
-		},
-
-		// Level 2: orders
-		"order_number": {
-			Type:         "regex",
-			RegexPattern: `^ORD-[0-9]{8}-[0-9]{4}$`,
-		},
-		"status": {
-			Type:         "regex",
-			RegexPattern: `^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$`,
-		},
-		"total_amount": {
-			Type:         "regex",
-			RegexPattern: `^[0-9]{1,10}\.[0-9]{2}$`,
-		},
-
-		// Level 3: shipments
-		"tracking_number": {
-			Type:         "regex",
-			RegexPattern: `^[A-Z0-9]{8,100}$`,
-		},
-
-		// Level 4: shipment_tracking_events
-		"location": {
-			Type:         "regex",
-			RegexPattern: `^[A-Za-z\s.-]+,\s*[A-Z]{2}(\s*[0-9]{5})?$`,
-		},
-		"status_description": {
-			Type:         "regex",
-			RegexPattern: `^[A-Za-z0-9\s.,-]{1,255}$`,
-		},
-
-		// Level 5: delivery_proofs
-		"recipient_signature_url": {
-			Type:         "regex",
-			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|svg)$`,
-		},
-		"photo_url": {
-			Type:         "regex",
-			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|webp)$`,
-		},
-
-		// Level 6: proof_verifications
-		"confidence_score": {
-			Type:         "regex",
-			RegexPattern: `^(100\.00|[0-9]{1,2}\.[0-9]{2})$`,
-		},
-	}
-
-	for i, g := range erGroups {
-		fmt.Printf("Group %d\n", i)
+	for _, g := range erGroups {
+		// fmt.Printf("Group %d\n", i)
 		for _, table := range g {
-
 			entity := allEntities[table]
 
-			colNames, stream := s.CreateStream(entity, 1, rules)
+			fmt.Println("Ingesting data in", entity.Name)
+
+			tableRules := make(map[string]models.GenerationRule)
+			// main table takes input from cli
+			var rowCount = d.input.Count
+
+			if tableCfg, ok := d.config.Rules.Rules.Tables[entity.Name]; ok {
+				if tableCfg.Count > 0 {
+					// override cli from config
+					rowCount = tableCfg.Count
+				}
+				for colName, colRule := range tableCfg.Columns {
+					tableRules[colName] = models.GenerationRule{
+						Type:         colRule.Type,
+						RegexPattern: colRule.Pattern,
+					}
+				}
+			}
+
+			colNames, stream := s.CreateStream(entity, rowCount, tableRules)
 
 			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
 			insertedRows, err := d.db.BulkInsert(ctx, entity, colNames, stream)
@@ -128,7 +86,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				return err
 			}
 
-			fmt.Printf("✅ Successfully inserted %d rows into %s\n", insertedRows, entity.Name)
+			fmt.Printf("\t✅ Successfully inserted %d rows into %s\n", insertedRows, entity.Name)
 			// noTables := len(allEntities[table].Columns)
 
 			// var fk int

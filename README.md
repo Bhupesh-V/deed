@@ -2,20 +2,19 @@
 
 ## Why?
 
-- Your database is a heavy lifter, i.e you now have to opimise your **SQL queries** and **indexes**.
+- Your database is a heavy lifter, i.e you have to constantly optimise your **SQL queries** and **indexes**.
 - You don't have access to production data due to compliance issues.
 - You are a master procastinator on load testing your APIs.
 
 ## Why not?
 
 - You don't know how to use a modern RDBMS.
-- Strict validation of business data on frontend.
+- Strict or double validation of business data on API/UI level.
 
 ## For whom?
 
 1. Database Engineers.
 2. Data Engineers, Backend Engineers.
-3. DevOps Engineers & SREs.
 
 ## Installation
 
