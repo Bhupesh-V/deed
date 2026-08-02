@@ -185,12 +185,20 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				})
 			}
 
+			var nullable bool
+			if c.IsNullable == "YES" {
+				nullable = true
+			}
+
 			cols = append(cols, models.Column{
 				Name: c.Name,
 				Type: models.DataType{
 					BaseType: c.UdtName,
+					Length:   c.CharacterMaximumLength,
 				},
 				Constraint: constraints,
+				Nullable:   nullable,
+				// Default:    *c.Default,
 			})
 		}
 
@@ -309,6 +317,41 @@ func (p *postgres) BulkInsert(
 	}
 
 	return insertedRows, nil
+}
+
+func (p *postgres) GetRandomIDs(
+	ctx context.Context,
+	tableName string,
+	columnName string,
+	limit int,
+) ([]any, error) {
+	// Sanitize/format identifiers carefully using pgx.Identifier to avoid SQL injection
+	query := fmt.Sprintf(
+		`SELECT %s FROM %s ORDER BY random() LIMIT $1`,
+		pgx.Identifier{columnName}.Sanitize(),
+		pgx.Identifier{tableName}.Sanitize(),
+	)
+
+	rows, err := p.pg.Query(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch random IDs from %s.%s: %w", tableName, columnName, err)
+	}
+	defer rows.Close()
+
+	var ids []any
+	for rows.Next() {
+		var id any
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan ID row: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during row iteration: %w", err)
+	}
+
+	return ids, nil
 }
 
 // Private adapter wrapping databulk.RowStream into pgx.CopyFromSource

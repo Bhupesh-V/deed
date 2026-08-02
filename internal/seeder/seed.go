@@ -1,23 +1,26 @@
 package seeder
 
 import (
+	"deed/database"
 	"deed/internal/models"
 	"deed/internal/stream"
 	"fmt"
-	"math/rand"
 	"strings"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
 
 type Seeder struct {
-	// In-memory foreign key registry mapping table -> generated primary keys
-	idRegistry map[string][]int
+	db        database.Database
+	batchSize int
 }
 
-func New() *Seeder {
+func New(db database.Database) *Seeder {
+	batchSize := 500
+
 	return &Seeder{
-		idRegistry: make(map[string][]int),
+		db:        db,
+		batchSize: batchSize,
 	}
 }
 
@@ -29,6 +32,7 @@ type TableStream struct {
 	totalCount   int
 	currentIndex int
 	currentRow   []any
+	fetcher      *fkFetcher
 	err          error
 }
 
@@ -55,6 +59,7 @@ func (s *Seeder) CreateStream(
 		rules:        rules,
 		totalCount:   count,
 		currentIndex: 0,
+		fetcher:      newFKFetcher(s.db, s.batchSize),
 	}
 
 	return colNames, stream
@@ -89,9 +94,11 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 
 	// Foreign Key Lookup from Seeder Memory Cache
 	if parentTable, _, ok := col.GetFK(); ok {
-		if parentIDs, ok := ts.seeder.idRegistry[parentTable]; ok && len(parentIDs) > 0 {
-			return parentIDs[rand.Intn(len(parentIDs))]
+		val, err := ts.fetcher.GetNextID(parentTable, col.Name)
+		if err != nil {
+			// return nil, fmt.Errorf("failed to generate foreign key for %s.%s: %w", s.entity.Name, col.Name, err)
 		}
+		return val
 	}
 
 	// Fallback to base type defaults
@@ -104,9 +111,10 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		return gofakeit.UUID()
 
 	case strings.Contains(baseType, "bool"):
+		// TODO: figure out bool Percentage
 		return rowIndex%2 == 0
 
-	case strings.Contains(baseType, "timestamp"), strings.Contains(baseType, "date"):
+	case strings.Contains(baseType, "timestamp"), strings.Contains(baseType, "timestampz"), strings.Contains(baseType, "date"):
 		return gofakeit.Date()
 
 	case strings.Contains(baseType, "numeric"), strings.Contains(baseType, "decimal"), strings.Contains(baseType, "float"), strings.Contains(baseType, "real"):
@@ -122,6 +130,8 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		// Handle CHAR(n) / bpchar fixed lengths using Precision
 		if col.Type.Precision != nil && *col.Type.Precision > 0 && *col.Type.Precision <= 3 {
 			return gofakeit.LetterN(uint(*col.Type.Precision))
+		} else if col.Type.Length != nil {
+			return gofakeit.LetterN(uint(*col.Type.Length))
 		}
 		return fmt.Sprintf("%s_%d", col.Name, rowIndex)
 

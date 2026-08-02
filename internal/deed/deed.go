@@ -50,65 +50,65 @@ func (d *Deed) Start(ctx context.Context) error {
 		log.Fatal(err)
 	}
 
-	s := seeder.New()
+	s := seeder.New(d.db)
 
 	rules := map[string]models.GenerationRule{
 		// Level 1: users
-		"users.email": {
+		"email": {
 			Type:         "regex",
 			RegexPattern: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`,
 		},
-		"users.username": {
+		"username": {
 			Type:         "regex",
 			RegexPattern: `^[a-zA-Z0-9_-]{3,30}$`,
 		},
-		"users.password_hash": {
+		"password_hash": {
 			Type:         "regex",
 			RegexPattern: `^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9./]{53}$`,
 		},
 
 		// Level 2: orders
-		"orders.order_number": {
+		"order_number": {
 			Type:         "regex",
 			RegexPattern: `^ORD-[0-9]{8}-[0-9]{4}$`,
 		},
-		"orders.status": {
+		"status": {
 			Type:         "regex",
 			RegexPattern: `^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$`,
 		},
-		"orders.total_amount": {
+		"total_amount": {
 			Type:         "regex",
 			RegexPattern: `^[0-9]{1,10}\.[0-9]{2}$`,
 		},
 
 		// Level 3: shipments
-		"shipments.tracking_number": {
+		"tracking_number": {
 			Type:         "regex",
 			RegexPattern: `^[A-Z0-9]{8,100}$`,
 		},
 
 		// Level 4: shipment_tracking_events
-		"shipment_tracking_events.location": {
+		"location": {
 			Type:         "regex",
 			RegexPattern: `^[A-Za-z\s.-]+,\s*[A-Z]{2}(\s*[0-9]{5})?$`,
 		},
-		"shipment_tracking_events.status_description": {
+		"status_description": {
 			Type:         "regex",
 			RegexPattern: `^[A-Za-z0-9\s.,-]{1,255}$`,
 		},
 
 		// Level 5: delivery_proofs
-		"delivery_proofs.recipient_signature_url": {
+		"recipient_signature_url": {
 			Type:         "regex",
 			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|svg)$`,
 		},
-		"delivery_proofs.photo_url": {
+		"photo_url": {
 			Type:         "regex",
 			RegexPattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|webp)$`,
 		},
 
 		// Level 6: proof_verifications
-		"proof_verifications.confidence_score": {
+		"confidence_score": {
 			Type:         "regex",
 			RegexPattern: `^(100\.00|[0-9]{1,2}\.[0-9]{2})$`,
 		},
@@ -120,7 +120,7 @@ func (d *Deed) Start(ctx context.Context) error {
 
 			entity := allEntities[table]
 
-			colNames, stream := s.CreateStream(entity, 100, rules)
+			colNames, stream := s.CreateStream(entity, 1, rules)
 
 			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
 			insertedRows, err := d.db.BulkInsert(ctx, entity, colNames, stream)
