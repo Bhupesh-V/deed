@@ -16,8 +16,9 @@ type Column struct {
 	UdtName                string
 	IsNullable             string
 	CharacterMaximumLength *int32 // Can be null
-	NumericPrecision       *int32 // Can be null
-	NumericPrecisionRadix  *int32 // Can be null
+	NumericPrecision       *int   // Can be null
+	NumericPrecisionRadix  *int   // Can be null
+	NumericPrecisionScale  *int
 	DatetimePrecision      *int32 // Can be null
 	IsSelfReferencing      string
 	DtdIdentifier          string
@@ -45,8 +46,9 @@ type FlatRow struct {
 	UdtName                string
 	IsNullable             string
 	CharacterMaximumLength *int32
-	NumericPrecision       *int32
-	NumericPrecisionRadix  *int32
+	NumericPrecision       *int
+	NumericPrecisionRadix  *int
+	NumericPrecisionScale  *int
 	DatetimePrecision      *int32
 	IsSelfReferencing      string
 	DtdIdentifier          string

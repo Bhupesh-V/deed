@@ -30,35 +30,35 @@ func TotalCombinations(total, need float64) int64 {
 	return int64(math.Pow(total, need))
 }
 
-// GetNumericDatasetSize determines total unique steps available
-func GetNumericDatasetSize(precision, scale int64) int64 {
+// GetNumericDatasetSize determines total unique steps available by utilizing the explicit number base system (radix).
+func GetNumericDatasetSize(precision, scale, radix int64) int64 {
+	// 1. If Radix is 2, it is a binary system (PostgreSQL Integer types like smallint, int, bigint)
+	if radix == 2 {
+		// Calculate the full binary range space: 2^precision
+		size := math.Pow(2, float64(precision))
+
+		// Prevent Int64 overflow for bigint columns (precision 64)
+		if size > float64(math.MaxInt64) || math.IsInf(size, 0) {
+			return math.MaxInt64
+		}
+		return int64(size)
+	}
+
+	// 2. If Radix is 10, it is a decimal system (PostgreSQL NUMERIC / DECIMAL types)
 	p := float64(precision)
 	s := float64(scale)
 
-	// 1. Calculate absolute physical maximum allowed by precision/scale
-	// Max = 10^(P-S) - 10^(-S)
+	// Calculate absolute physical maximum allowed by precision/scale
 	absMax := math.Pow(10, p-s) - math.Pow(10, -s)
 	absMin := -absMax
 
-	// 2. Adjust bounds based on CHECK constraints
 	minBound := absMin
 	maxBound := absMax
 
-	// if meta.HasMinCheck {
-	// 	// If constraint is strictly positive (> 0), the actual minimum
-	// 	// representable number is one fractional step above the check value.
-	// 	smallestStep := math.Pow(10, -s)
-	// 	if meta.MinCheckVal == 0 {
-	// 		minBound = smallestStep // e.g., 0.0001 if scale is 4
-	// 	} else {
-	// 		minBound = meta.MinCheckVal + smallestStep
-	// 	}
-	// }
-
-	// 3. Apply the universal formula: ((Max - Min) * 10^Scale) + 1
+	// Apply the universal step formula: ((Max - Min) * 10^Scale) + 1
 	multiplier := math.Pow(10, s)
 	size := ((maxBound - minBound) * multiplier) + 1
 
-	// Round to nearest integer to clear out tiny floating-point math inaccuracies
+	// Round to nearest integer to clear out floating-point inaccuracies
 	return int64(math.Round(size))
 }

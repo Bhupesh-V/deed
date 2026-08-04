@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deed/pkg/calc"
+	"deed/pkg/fake"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
@@ -36,6 +37,7 @@ type TableStream struct {
 	currentIndex int
 	currentRow   []any
 	fetcher      *fetcher
+	faker        *fake.Fake
 	err          error
 }
 
@@ -68,6 +70,7 @@ func (s *Seeder) Prepare(
 		totalCount:   count,
 		currentIndex: 0,
 		fetcher:      newFetcher(s.db, s.batchSize),
+		faker:        fake.New(),
 	}
 
 	return colNames, stream, nil
@@ -103,9 +106,12 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	if parentTable, _, ok := col.GetFK(); ok {
 		val, err := ts.fetcher.GetParentId(parentTable, col.Name)
 		if err != nil {
-			// return nil, fmt.Errorf("failed to generate foreign key for %s.%s: %w", s.entity.Name, col.Name, err)
+			ts.err = fmt.Errorf("failed to generate foreign key for %s: %w", col.Name, err)
 		}
 		return val
+		// find type of relationship: 1-1, 1-M or M-N
+		// 1-1: invoke calc.Permute
+		// 1-M or M-N invoke fetcher.GetParentId
 	}
 
 	// Fallback to base type defaults
@@ -139,7 +145,12 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		if col.Type.Precision != nil && *col.Type.Precision > 0 && *col.Type.Precision <= 3 {
 			return gofakeit.LetterN(uint(*col.Type.Precision))
 		} else if col.Type.Length != nil {
-			return gofakeit.LetterN(uint(*col.Type.Length))
+			val, err := ts.faker.LetterN(col.Name, uint(*col.Type.Length))
+			if err != nil {
+				ts.err = err
+				return ""
+			}
+			return val
 		}
 
 	case strings.Contains(baseType, "varchar"):
@@ -169,9 +180,9 @@ func validateCounts(entity *models.Entity, count int) error {
 			baseType := strings.ToLower(col.Type.BaseType)
 
 			switch {
-			case strings.Contains(baseType, "numeric"), strings.Contains(baseType, "decimal"), strings.Contains(baseType, "int"):
+			case strings.Contains(baseType, "numeric"), strings.Contains(baseType, "decimal"), strings.Contains(baseType, "int"), strings.Contains(baseType, "int4"):
 				if col.Type.Precision != nil && *col.Type.Precision > 0 {
-					datasetsize = calc.GetNumericDatasetSize(int64(*col.Type.Precision), int64(*col.Type.Scale))
+					datasetsize = calc.GetNumericDatasetSize(int64(*col.Type.Precision), int64(*col.Type.Scale), int64(*col.Type.Radix))
 				}
 
 			case strings.Contains(baseType, "bpchar"), strings.Contains(baseType, "char"), strings.Contains(baseType, "varchar"):
@@ -183,7 +194,16 @@ func validateCounts(entity *models.Entity, count int) error {
 			}
 
 			if int64(count) > datasetsize {
-				errs = append(errs, fmt.Errorf("Table [%s] has a column [%s] with UNIQUE constraint which limits possible values of type [%s] to [%d], however [%d] rows were requested", entity.Name, col.Name, col.Type.BaseType, datasetsize, count))
+				errs = append(errs,
+					fmt.Errorf(
+						"[%s] has a column [%s] with a UNIQUE constraint which limits possible values of type [%s] to [%d], however [%d] rows were requested",
+						entity.Name,
+						col.Name,
+						col.Type.BaseType,
+						datasetsize,
+						count,
+					),
+				)
 			}
 		}
 	}
