@@ -1,0 +1,343 @@
+erDiagram
+    activity_logs {
+        uuid activity_id PK 
+        timestamp_with_time_zone created_at 
+        character_varying event_name 
+        jsonb payload 
+        character_varying severity 
+    }
+
+    app_versions {
+        boolean is_critical_update 
+        timestamp_with_time_zone released_at 
+        integer version_id PK 
+        character_varying version_number UK 
+    }
+
+    audit_logs {
+        character_varying action_type 
+        timestamp_with_time_zone created_at 
+        character_varying entity_id 
+        character_varying entity_name 
+        inet ip_address 
+        bigint log_id PK 
+    }
+
+    banners {
+        integer banner_id PK 
+        integer display_order 
+        character_varying image_url 
+        boolean is_active 
+        character_varying target_url 
+        character_varying title 
+    }
+
+    brand_assets {
+        uuid asset_id PK 
+        character_varying asset_type 
+        character_varying file_path UK 
+        integer file_size_kb 
+    }
+
+    categories {
+        integer category_id PK 
+        text description 
+        boolean is_visible 
+        character_varying name 
+        character_varying slug UK 
+    }
+
+    countries {
+        character country_code PK 
+        character iso_numeric UK 
+        character_varying name UK 
+    }
+
+    coupons {
+        character_varying code UK 
+        integer coupon_id PK 
+        numeric discount_percent 
+        timestamp_with_time_zone expires_at 
+        integer max_uses 
+    }
+
+    currencies {
+        character currency_code PK 
+        numeric exchange_rate_usd 
+        character_varying name 
+        character_varying symbol 
+    }
+
+    delivery_proofs {
+        timestamp_with_time_zone delivered_at 
+        integer event_id FK,UK 
+        character_varying photo_url 
+        uuid proof_id PK 
+        character_varying recipient_signature_url 
+    }
+
+    email_logs {
+        character_varying delivery_status 
+        bigint log_id PK 
+        character_varying recipient_email 
+        timestamp_with_time_zone sent_at 
+        character_varying subject 
+    }
+
+    faq_articles {
+        text answer 
+        integer faq_id PK 
+        boolean is_published 
+        character_varying question 
+    }
+
+    feature_flags {
+        integer flag_id PK 
+        character_varying flag_key UK 
+        boolean is_enabled 
+        integer rollout_percentage 
+    }
+
+    inventory {
+        integer inventory_id PK 
+        integer quantity_available 
+        integer variant_id FK,UK 
+        integer warehouse_id FK,UK 
+    }
+
+    maintenance_windows {
+        timestamp_with_time_zone end_time 
+        timestamp_with_time_zone start_time 
+        character_varying title 
+        integer window_id PK 
+    }
+
+    newsletters {
+        character_varying email UK 
+        boolean is_subscribed 
+        integer newsletter_id PK 
+        timestamp_with_time_zone subscribed_at 
+    }
+
+    notification_templates {
+        text body_template 
+        character_varying subject_template 
+        character_varying template_code UK 
+        integer template_id PK 
+    }
+
+    order_invoices {
+        numeric amount_due 
+        character currency FK 
+        uuid invoice_id PK 
+        character_varying invoice_number UK 
+        timestamp_with_time_zone issued_at 
+        uuid order_id FK,UK 
+    }
+
+    order_items {
+        uuid order_id FK 
+        integer order_item_id PK 
+        integer quantity 
+        numeric unit_price 
+        integer variant_id FK 
+    }
+
+    orders {
+        uuid order_id PK 
+        character_varying order_number UK 
+        timestamp_with_time_zone placed_at 
+        character_varying status 
+        numeric total_amount 
+        uuid user_id FK 
+    }
+
+    permissions {
+        character_varying module 
+        integer permission_id PK 
+        character_varying permission_key UK 
+    }
+
+    product_variants {
+        numeric additional_price 
+        jsonb attribute_json 
+        integer product_id FK 
+        integer variant_id PK 
+        character_varying variant_sku UK 
+    }
+
+    products {
+        numeric base_price 
+        integer category_id FK 
+        character_varying name 
+        integer product_id PK 
+        character_varying sku UK 
+    }
+
+    proof_verifications {
+        numeric confidence_score 
+        uuid proof_id FK 
+        integer verification_id PK 
+        timestamp_with_time_zone verified_at 
+        boolean verified_by_system 
+    }
+
+    reviews {
+        text comment 
+        timestamp_with_time_zone created_at 
+        integer product_id FK,UK 
+        integer rating 
+        integer review_id PK 
+        uuid user_id FK,UK 
+    }
+
+    roles {
+        character_varying description 
+        integer role_id PK 
+        character_varying role_name UK 
+    }
+
+    schema_migrations {
+        boolean dirty 
+        bigint version PK 
+    }
+
+    shipment_tracking_events {
+        integer event_id PK 
+        timestamp_with_time_zone event_time 
+        character_varying location 
+        uuid shipment_id FK 
+        character_varying status_description 
+    }
+
+    shipments {
+        integer address_id FK 
+        integer carrier_id FK 
+        timestamp_with_time_zone dispatched_at 
+        uuid order_id FK 
+        uuid shipment_id PK 
+        character_varying tracking_number UK 
+    }
+
+    shipping_carriers {
+        integer carrier_id PK 
+        character_varying code UK 
+        boolean is_active 
+        character_varying name 
+        character_varying support_phone 
+    }
+
+    suppliers {
+        character_varying company_name UK 
+        character_varying contact_email 
+        boolean is_active 
+        character_varying phone 
+        integer supplier_id PK 
+    }
+
+    support_tickets {
+        timestamp_with_time_zone created_at 
+        character_varying priority 
+        character_varying status 
+        character_varying subject 
+        integer ticket_id PK 
+        uuid user_id FK 
+    }
+
+    system_settings {
+        boolean is_encrypted 
+        integer setting_id PK 
+        character_varying setting_key UK 
+        text setting_value 
+        timestamp_with_time_zone updated_at 
+    }
+
+    tags {
+        character_varying name UK 
+        character_varying slug UK 
+        integer tag_id PK 
+    }
+
+    tax_rates {
+        numeric rate_percentage 
+        character_varying region_code UK 
+        character_varying tax_name 
+        integer tax_rate_id PK 
+    }
+
+    transactions {
+        numeric amount 
+        timestamp_with_time_zone created_at 
+        character currency FK 
+        uuid order_id FK 
+        character_varying provider 
+        character_varying status 
+        uuid transaction_id PK 
+    }
+
+    user_addresses {
+        integer address_id PK 
+        character_varying city 
+        character country_code FK 
+        boolean is_default 
+        character_varying postal_code 
+        character_varying street_line1 
+        uuid user_id FK 
+    }
+
+    user_profiles {
+        character_varying avatar_url 
+        character_varying first_name 
+        character_varying last_name 
+        integer profile_id PK 
+        uuid user_id FK,UK 
+    }
+
+    users {
+        timestamp_with_time_zone created_at 
+        character_varying email UK 
+        boolean is_active 
+        character_varying password_hash 
+        uuid user_id PK 
+        character_varying username UK 
+    }
+
+    warehouses {
+        numeric capacity_sqft 
+        character_varying code UK 
+        character_varying name 
+        integer warehouse_id PK 
+    }
+
+    webhook_events {
+        timestamp_with_time_zone created_at 
+        uuid event_id PK 
+        character_varying event_type 
+        jsonb payload 
+        integer retry_count 
+        character_varying status 
+    }
+
+    products }o--|| categories : "category_id"
+    user_addresses }o--|| countries : "country_code"
+    order_invoices }o--|| currencies : "currency"
+    transactions }o--|| currencies : "currency"
+    delivery_proofs }o--|| shipment_tracking_events : "event_id"
+    proof_verifications }o--|| delivery_proofs : "proof_id"
+    inventory }o--|| product_variants : "variant_id"
+    inventory }o--|| warehouses : "warehouse_id"
+    order_invoices }o--|| orders : "order_id"
+    order_items }o--|| orders : "order_id"
+    order_items }o--|| product_variants : "variant_id"
+    orders }o--|| users : "user_id"
+    shipments }o--|| orders : "order_id"
+    transactions }o--|| orders : "order_id"
+    product_variants }o--|| products : "product_id"
+    reviews }o--|| products : "product_id"
+    reviews }o--|| users : "user_id"
+    shipment_tracking_events }o--|| shipments : "shipment_id"
+    shipments }o--|| shipping_carriers : "carrier_id"
+    shipments }o--|| user_addresses : "address_id"
+    support_tickets }o--|| users : "user_id"
+    user_addresses }o--|| users : "user_id"
+    user_profiles }o--|| users : "user_id"

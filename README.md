@@ -20,9 +20,22 @@
 
 TODO
 
-## Supported Databases
+## Databases Coverage
 
-- Postgres
+### Postgres
+
+
+| Constraint Type | Description | Common SQL Syntax Example | Tool Coverage |
+| :--- | :--- | :--- | :---: |
+| **Primary Key** | Uniquely identifies each row in a table. Implicitly enforces `NOT NULL` and `UNIQUE`. | `PRIMARY KEY (id)` | [ ] Supported |
+| **Foreign Key** | Links data in one table to a primary/unique key in another, maintaining relationship consistency. | `FOREIGN KEY (user_id) REFERENCES users(id)` | [ ] Supported |
+| **Unique** | Ensures all values in a column or set of columns are distinct (typically allows `NULL`s depending on SQL engine). | `UNIQUE (email)` | [ ] Supported |
+| **Not Null** | Prevents `NULL` (missing) values from being stored in a column. | `email VARCHAR(255) NOT NULL` | [ ] Supported |
+| **Check** | Evaluates a Boolean expression against inserted or updated row data. | `CHECK (age >= 18)` | [ ] Supported |
+| **Default** | Automatically assigns a preset value if no explicit value is supplied during `INSERT`. | `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | [ ] Supported |
+| **Exclusion Constraint** | Guarantees that if two rows are compared on specified columns using specific operators, at least one returns false (e.g., preventing overlapping time intervals in PostgreSQL). | `EXCLUDE USING gist (room_id WITH =, reservation_period WITH &&)` | [ ] Supported |
+| **Domain Constraint** | Restricts data values to a named domain with custom constraints/types. | `CREATE DOMAIN pos_int AS INT CHECK (VALUE > 0);` | [ ] Supported |
+| **Generated/Computed Column** | Constrains a column value to always be derived from a specific expression or formula. | `total DECIMAL(10,2) GENERATED ALWAYS AS (price * qty)` | [ ] Supported |
 
 ## Usage
 
@@ -42,28 +55,58 @@ Deed can definitely be used to fill up your schema with test data and by extensi
 
 ### Deed Config
 
-deed works well if you already have a config setup as per your use-case.
+deed works well if you already have a config setup as per your use-case. Create a `deed.json` file wherever you plan to invoke the deed CLI with the following content.
 
-Create a `deed.yaml` file wherever you plan to invoke the deed CLI with the following content.
-
-```yaml
+```json
+{
+    "version": "1",
+    "database": {
+        "name": "postgres"
+    },
+    "rules": {
+        "ignore_tables": [
+            "schema_migrations"
+        ],
+        "tables": {
+            "users": {
+                // strict limit on no.of rows that should be ingested in users, this takes precedence over CLI
+                "count": 200,
+                "columns": {
+                    "username": {
+                        "type": "regex",
+                        // define how your business data looks like using RE2 compatible regex expressions
+                        "pattern": "^[a-zA-Z0-9_-]{3,30}$"
+                    },
+                    "password_hash": {
+                        "type": "regex",
+                        "pattern": "^\\$2[ayb]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}$"
+                    }
+                }
+            },
+            "countries": {
+                "count": 50
+            }
+        }
+    }
+}
 ...
 ```
 
 The config is pretty intutive:
 
-The deed config can be committed to a git repository and shared with team members.
+
+The **deed config can be committed to a git repository** and shared with team members. However, its higly recommended that you copy your team config, tune any parameters and supply the copy to deed, this aligns with the deed [ideology](#ideology).
 
 ### Seed data
 
-Ingest a million rows in tables `app` and `users` along with their parents.
+Ingest a million rows in tables `app` and `users` along with their parents (aka dependencies).
 
 ```
 deed seed \
- --url "postgres://postgres:my_secure_password@127.0.0.1:5433/postgres" \
+ --dsn "postgres://postgres:my_secure_password@127.0.0.1:5433/postgres" \
  --tables=app,users \
  --count=1000000 \
- --config=deed.yaml
+ --config=deed.json
 ```
 
 Sample Output

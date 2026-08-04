@@ -42,7 +42,7 @@ type ForeignKeyDetails struct {
 
 // GetFK returns Foreign Key (FK) relationship details directly from a column's constraints
 // TODO: handle composite FKs
-func (c *Column) GetFK() (string, string, bool) {
+func (c *Column) GetFK() (parentTable string, parentCol string, ok bool) {
 	for _, ctr := range c.Constraint {
 		if ctr.Type == ForeignKey.String() && ctr.ReferencedTable != nil && *ctr.ReferencedTable != "" {
 			// TODO: unreliable assumption!!!!
@@ -59,6 +59,15 @@ func (c *Column) GetFK() (string, string, bool) {
 func (c *Column) IsAutoIncrement() bool {
 	dt := strings.ToLower(c.Type.BaseType)
 	return strings.Contains(dt, "serial")
+}
+
+func (c *Column) HasUniqueConstraint() bool {
+	for _, c := range c.Constraint {
+		if c.Type == "UNIQUE" {
+			return true
+		}
+	}
+	return false
 }
 
 // GenerationRule defines how a specific column generates fake data.

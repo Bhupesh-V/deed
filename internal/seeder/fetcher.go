@@ -22,7 +22,14 @@ func newFetcher(db database.Database, batchSize int) *fetcher {
 	}
 }
 
-func (f *fetcher) GetNextID(table, column string) (any, error) {
+// FK is a sequential id
+// FK is a non-sequential id (uuid)
+
+// FK mapping is 1-1
+// FK mapping is 1-M
+// FK mapping is M-M
+
+func (f *fetcher) GetParentId(table, column string) (any, error) {
 	key := fmt.Sprintf("%s.%s", table, column)
 
 	cursor := f.cursors[key]

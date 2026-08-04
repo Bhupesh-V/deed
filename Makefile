@@ -24,6 +24,16 @@ help:
 	@echo "  migrate-up      Apply all 'up' migrations"
 	@echo "  migrate-down    Roll back 1 migration (usage: make migrate-down N=1)"
 
+
+setup-mermaid: ## Install mermaid-cli via docker to generate ER diagrams
+	docker pull minlag/mermaid-cli:latest
+
+setup-mermerd:
+	go install github.com/KarnerTh/mermerd@latest
+
+## Install all the build and lint dependencies
+setup: setup-mermaid setup-mermaid
+
 ## env: One-step command to start database and run migrations
 env: db-up
 	@echo "Waiting for PostgreSQL to be ready on port $(DB_PORT)..."

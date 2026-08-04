@@ -8,6 +8,7 @@ import (
 	"deed/internal/models"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -50,7 +51,8 @@ var seedCmd = &cobra.Command{
 		})
 
 		if err := app.Start(ctx); err != nil {
-			log.Fatalf("Deed execution failed: %v", err)
+			fmt.Printf("\ndeed execution failed: \n\n%v", err)
+			os.Exit(1)
 		}
 	},
 }

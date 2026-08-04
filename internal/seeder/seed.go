@@ -4,8 +4,11 @@ import (
 	"deed/database"
 	"deed/internal/models"
 	"deed/internal/stream"
+	"errors"
 	"fmt"
 	"strings"
+
+	"deed/pkg/calc"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
@@ -36,14 +39,19 @@ type TableStream struct {
 	err          error
 }
 
-// CreateStream generates column names and returns a databulk.RowStream
-func (s *Seeder) CreateStream(
+// Prepare generates column names and returns a stream.RowStream
+func (s *Seeder) Prepare(
 	entity *models.Entity,
 	count int,
 	rules map[string]models.GenerationRule,
-) ([]string, stream.RowStream) {
+) ([]string, stream.RowStream, error) {
 	var targetCols []models.Column
 	var colNames []string
+
+	err := validateCounts(entity, count)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	for _, col := range entity.Columns {
 		if col.IsAutoIncrement() {
@@ -62,7 +70,7 @@ func (s *Seeder) CreateStream(
 		fetcher:      newFetcher(s.db, s.batchSize),
 	}
 
-	return colNames, stream
+	return colNames, stream, nil
 }
 
 func (ts *TableStream) Next() bool {
@@ -84,7 +92,7 @@ func (ts *TableStream) Values() ([]any, error) { return ts.currentRow, nil }
 func (ts *TableStream) Err() error             { return ts.err }
 
 func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
-	// Custom User Rule
+	// User Rule takes precedence
 	if rule, exists := ts.rules[col.Name]; exists {
 		if rule.Type == "regex" {
 			pattern := rule.RegexPattern
@@ -93,7 +101,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	}
 
 	if parentTable, _, ok := col.GetFK(); ok {
-		val, err := ts.fetcher.GetNextID(parentTable, col.Name)
+		val, err := ts.fetcher.GetParentId(parentTable, col.Name)
 		if err != nil {
 			// return nil, fmt.Errorf("failed to generate foreign key for %s.%s: %w", s.entity.Name, col.Name, err)
 		}
@@ -136,7 +144,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 
 	case strings.Contains(baseType, "varchar"):
 		if col.Type.Length != nil {
-			return gofakeit.Sentence(int(*col.Type.Length))
+			return gofakeit.LetterN(uint(*col.Type.Length))
 		}
 
 	default:
@@ -149,4 +157,36 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	}
 
 	return ""
+}
+
+func validateCounts(entity *models.Entity, count int) error {
+	var errs []error
+
+	for _, col := range entity.Columns {
+		if col.HasUniqueConstraint() && !col.IsAutoIncrement() {
+			var datasetsize int64
+
+			baseType := strings.ToLower(col.Type.BaseType)
+
+			switch {
+			case strings.Contains(baseType, "numeric"), strings.Contains(baseType, "decimal"), strings.Contains(baseType, "int"):
+				if col.Type.Precision != nil && *col.Type.Precision > 0 {
+					datasetsize = calc.GetNumericDatasetSize(int64(*col.Type.Precision), int64(*col.Type.Scale))
+				}
+
+			case strings.Contains(baseType, "bpchar"), strings.Contains(baseType, "char"), strings.Contains(baseType, "varchar"):
+				// Handle CHAR(n) / bpchar fixed lengths using Precision
+				if col.Type.Length != nil {
+					datasetsize = calc.TotalCombinations(52, float64(*col.Type.Length))
+				}
+
+			}
+
+			if int64(count) > datasetsize {
+				errs = append(errs, fmt.Errorf("Table [%s] has a column [%s] with UNIQUE constraint which limits possible values of type [%s] to [%d], however [%d] rows were requested", entity.Name, col.Name, col.Type.BaseType, datasetsize, count))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }
