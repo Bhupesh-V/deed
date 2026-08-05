@@ -9,6 +9,8 @@ import (
 	"deed/internal/seeder"
 	"fmt"
 	"log"
+
+	"github.com/charmbracelet/lipgloss/tree"
 )
 
 type Deed struct {
@@ -41,7 +43,7 @@ func (d *Deed) Start(ctx context.Context) error {
 	// Populate r.Dependencies map
 	for _, target := range lookUps {
 		fmt.Printf("\n--- Dependencies for '%s' ---\n", target)
-		r.GetDependencyTree(target, allEntities, "", true, 0, nil)
+		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
 	}
 
 	fmt.Printf("\n--- Starting Ingestion ---\n\n")

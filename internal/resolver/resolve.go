@@ -4,6 +4,9 @@ import (
 	"deed/internal/models"
 	"fmt"
 	"sort"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/tree"
 )
 
 type Resolver struct {
@@ -219,4 +222,69 @@ func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models
 			}
 		}
 	}
+}
+
+// GetDependencyTree builds and returns a lipgloss/tree Tree while populating r.Dependencies.
+func (r *Resolver) GetDependencyTreeUI(tableName string, tables map[string]*models.Entity, visited map[string]bool) *tree.Tree {
+	if visited == nil {
+		visited = make(map[string]bool)
+	}
+
+	// Ensure map entry exists for this table
+	if _, exists := r.Dependencies[tableName]; !exists {
+		r.Dependencies[tableName] = make(map[string]struct{})
+	}
+
+	// Define node styling
+	nodeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3dd3ab")).Bold(false)
+
+	// Create the root node for this sub-tree
+	t := tree.New().Root(nodeStyle.Render("🔗 " + tableName))
+
+	// Stop recursion if already visited on this branch to avoid infinite cycles
+	if visited[tableName] {
+		return t.Child(lipgloss.NewStyle().Faint(true).Render("(circular reference)"))
+	}
+	visited[tableName] = true
+
+	entity, exists := tables[tableName]
+	if !exists {
+		return t
+	}
+
+	// Collect unique direct parent tables
+	seenParents := make(map[string]bool)
+	var parents []string
+
+	for _, col := range entity.Columns {
+		parent, _, isFK := col.GetFK()
+		if isFK && parent != tableName && !seenParents[parent] {
+			seenParents[parent] = true
+			parents = append(parents, parent)
+			// Record direct dependency
+			r.Dependencies[tableName][parent] = struct{}{}
+		}
+	}
+
+	// Recurse over parents and attach child trees
+	for _, parent := range parents {
+		// Copy visited map per branch to allow shared dependencies across distinct subtrees
+		branchVisited := make(map[string]bool, len(visited))
+		for k, v := range visited {
+			branchVisited[k] = v
+		}
+
+		// Build child subtree recursively
+		childTree := r.GetDependencyTreeUI(parent, tables, branchVisited)
+		t.Child(childTree)
+
+		// Merge parent's transitive dependencies into current table
+		if parentDeps, ok := r.Dependencies[parent]; ok {
+			for dep := range parentDeps {
+				r.Dependencies[tableName][dep] = struct{}{}
+			}
+		}
+	}
+
+	return t
 }
