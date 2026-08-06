@@ -142,12 +142,14 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		}
 	}
 
-	if parentTable, _, ok := col.GetFK(); ok {
+	if parentTable, _, ok := col.FK(); ok {
 		var val any
 		var err error
 
+		parent := ts.entities[parentTable]
+
 		// 1-1 mapping with FK column
-		if col.HasUniqueConstraint() {
+		if col.HasUniqueConstraint() && parent.PK().IsOrdered() {
 			key := fmt.Sprintf("%s:%s", ts.entity.Name, col.Name)
 
 			actual, _ := ts.uniqueCounter.LoadOrStore(key, new(atomic.Int64))

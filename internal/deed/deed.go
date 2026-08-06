@@ -72,8 +72,8 @@ func (d *Deed) Start(ctx context.Context) error {
 				return err
 			}
 
-			if entity.GetPK().IsOrdered() {
-				lb, up, err := d.db.GetBounds(ctx, table, entity.GetPK().Name)
+			if entity.PK().IsOrdered() {
+				lb, up, err := d.db.GetBounds(ctx, table, entity.PK().Name)
 				if err != nil {
 					return err
 				}

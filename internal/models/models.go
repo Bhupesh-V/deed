@@ -45,9 +45,9 @@ type ForeignKeyDetails struct {
 	OnUpdate      string            // e.g., "RESTRICT"
 }
 
-// GetFK returns Foreign Key (FK) relationship details directly from a column's constraints
+// FK returns Foreign Key (FK) relationship details directly from a column's constraints
 // TODO: handle composite FKs
-func (c *Column) GetFK() (parentTable string, parentCol string, ok bool) {
+func (c *Column) FK() (parentTable string, parentCol string, ok bool) {
 	for _, ctr := range c.Constraint {
 		if ctr.Type == ForeignKey.String() && ctr.ReferencedTable != nil && *ctr.ReferencedTable != "" {
 			// TODO: unreliable assumption!!!!
@@ -75,7 +75,8 @@ func (c *Column) HasUniqueConstraint() bool {
 	return false
 }
 
-func (e *Entity) GetPK() *Column {
+// PK returns Primary Key column for an Entity
+func (e *Entity) PK() *Column {
 	for _, c := range e.Columns {
 		if c.IsPrimaryKey {
 			return &c
@@ -84,6 +85,7 @@ func (e *Entity) GetPK() *Column {
 	return nil
 }
 
+// IsOrdered validates whether the column can be sorted (i.e ordered) based on its data type.
 func (c *Column) IsOrdered() bool {
 	return slices.Contains([]string{"int", "int8", "int4", "serial"}, c.Type.BaseType)
 }

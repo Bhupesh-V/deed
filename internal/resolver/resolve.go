@@ -74,7 +74,7 @@ func (r *Resolver) FindIngestionOrder(tables map[string]*models.Entity, lookups 
 
 	for tableName, table := range tables {
 		for _, col := range table.Columns {
-			parent, _, isFK := col.GetFK()
+			parent, _, isFK := col.FK()
 			if !isFK || parent == tableName {
 				continue
 			}
@@ -184,7 +184,7 @@ func (r *Resolver) GetDependencyTree(tableName string, tables map[string]*models
 	seenParents := make(map[string]bool)
 
 	for _, col := range entity.Columns {
-		parent, _, isFK := col.GetFK()
+		parent, _, isFK := col.FK()
 		if isFK && parent != tableName && !seenParents[parent] {
 			seenParents[parent] = true
 			parents = append(parents, Edge{Parent: parent})
@@ -257,7 +257,7 @@ func (r *Resolver) GetDependencyTreeUI(tableName string, tables map[string]*mode
 	var parents []string
 
 	for _, col := range entity.Columns {
-		parent, _, isFK := col.GetFK()
+		parent, _, isFK := col.FK()
 		if isFK && parent != tableName && !seenParents[parent] {
 			seenParents[parent] = true
 			parents = append(parents, parent)
