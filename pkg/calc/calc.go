@@ -30,6 +30,27 @@ func TotalCombinations(total, need float64) int64 {
 	return int64(math.Pow(total, need))
 }
 
+// HashCounter maps a sequential counter within [min, max] to a pseudo-random,
+// non-repeating index within the same [min, max] range.
+func HashCounter(counter, min, max int64) int64 {
+	if max < min {
+		return min
+	}
+
+	// Calculate total number of elements in the range [min, max]
+	maxRows := (max - min) + 1
+	if maxRows <= 0 {
+		return min
+	}
+
+	// Normalize counter to a 0-indexed scale [0, maxRows - 1]
+	normalizedCounter := counter - min
+
+	rem := Permute(normalizedCounter, maxRows)
+
+	return rem + min
+}
+
 // GetNumericDatasetSize determines total unique steps available by utilizing the explicit number base system (radix).
 func GetNumericDatasetSize(precision, scale, radix int64) int64 {
 	// 1. If Radix is 2, it is a binary system (PostgreSQL Integer types like smallint, int, bigint)

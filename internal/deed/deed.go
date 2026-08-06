@@ -42,7 +42,7 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	// Populate r.Dependencies map
 	for _, target := range lookUps {
-		fmt.Printf("\n--- Dependencies for '%s' ---\n", target)
+		fmt.Printf("\n--- Dependencies for '%s' ---\n\n", target)
 		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
 	}
 
@@ -54,56 +54,33 @@ func (d *Deed) Start(ctx context.Context) error {
 		log.Fatal(err)
 	}
 
-	s := seeder.New(d.db)
+	s := seeder.New(d.db, d.config)
+
+	bounds := make(map[string]*models.Bound)
 
 	for _, g := range erGroups {
-		// fmt.Printf("Group %d\n", i)
 		for _, table := range g {
 			entity := allEntities[table]
 
-			fmt.Println("Ingesting data in", entity.Name)
-
-			tableRules := make(map[string]models.GenerationRule)
-			// main table takes input from cli
-			var rowCount = d.input.Count
-
-			if tableCfg, ok := d.config.Rules.Rules.Tables[entity.Name]; ok {
-				if tableCfg.Count > 0 {
-					// override cli from config
-					rowCount = tableCfg.Count
-				}
-				for colName, colRule := range tableCfg.Columns {
-					tableRules[colName] = models.GenerationRule{
-						Type:         colRule.Type,
-						RegexPattern: colRule.Pattern,
-					}
-				}
-			}
-
-			colNames, stream, err := s.Prepare(entity, rowCount, tableRules)
+			colNames, stream, err := s.Prepare(table, d.input.Count, allEntities, bounds)
 			if err != nil {
 				return err
 			}
-
 			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
-			insertedRows, err := d.db.Ingest(ctx, entity, colNames, stream)
+			insertedRows, err := d.db.Ingest(ctx, table, colNames, stream)
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("\t✅ Successfully inserted %d rows into %s\n", insertedRows, entity.Name)
-			// noTables := len(allEntities[table].Columns)
+			if entity.GetPK().IsOrdered() {
+				lb, up, err := d.db.GetBounds(ctx, table, entity.GetPK().Name)
+				if err != nil {
+					return err
+				}
+				bounds[table] = &models.Bound{Lower: lb, Upper: up}
+			}
 
-			// var fk int
-			// for _, col := range allEntities[table].Columns {
-			// 	for _, ctr := range col.Constraint {
-			// 		if ctr.Type == models.ForeignKey.String() {
-			// 			fk++
-			// 		}
-			// 	}
-			// }
-			// // for Group 0: total FK count should be 0, proving our sorting worked
-			// fmt.Printf("\ttable: %v, no.of columns:%d, total FKs: %d\n\n", table, noTables, fk)
+			fmt.Printf("✅ Inserted %d rows into %s\n", insertedRows, table)
 		}
 	}
 

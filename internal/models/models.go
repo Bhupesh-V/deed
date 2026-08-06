@@ -1,6 +1,9 @@
 package models
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 type Entity struct {
 	Schema  string
@@ -11,11 +14,12 @@ type Entity struct {
 }
 
 type Column struct {
-	Name       string
-	Type       DataType
-	Constraint []Constraint
-	Nullable   bool
-	Default    string
+	Name         string
+	Type         DataType
+	Constraint   []Constraint
+	Nullable     bool
+	Default      string
+	IsPrimaryKey bool
 }
 
 // DataType captures the full PostgreSQL type signature.
@@ -71,10 +75,28 @@ func (c *Column) HasUniqueConstraint() bool {
 	return false
 }
 
+func (e *Entity) GetPK() *Column {
+	for _, c := range e.Columns {
+		if c.IsPrimaryKey {
+			return &c
+		}
+	}
+	return nil
+}
+
+func (c *Column) IsOrdered() bool {
+	return slices.Contains([]string{"int", "int8", "int4", "serial"}, c.Type.BaseType)
+}
+
 // GenerationRule defines how a specific column generates fake data.
 type GenerationRule struct {
 	Type         string // "regex", "random_string", "random_int", "email", "foreign_key", "custom"
 	Min          int
 	Max          int
 	RegexPattern string
+}
+
+type Bound struct {
+	Lower int
+	Upper int
 }

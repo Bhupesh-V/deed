@@ -12,6 +12,7 @@ type Constraint struct {
 type Column struct {
 	Name                   string
 	Default                *string // Can be null
+	IsPrimaryKey           bool
 	DataType               string
 	UdtName                string
 	IsNullable             string
@@ -41,6 +42,7 @@ type Table struct {
 type FlatRow struct {
 	TableName              string
 	ColumnName             string
+	IsPrimaryKey           bool
 	ColumnDefault          *string
 	DataType               string
 	UdtName                string

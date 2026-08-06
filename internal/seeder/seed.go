@@ -2,11 +2,14 @@ package seeder
 
 import (
 	"deed/database"
+	"deed/internal/config"
 	"deed/internal/models"
 	"deed/internal/stream"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"deed/pkg/calc"
 	"deed/pkg/fake"
@@ -16,43 +19,69 @@ import (
 
 type Seeder struct {
 	db        database.Database
+	config    *config.Config
 	batchSize int
 }
 
-func New(db database.Database) *Seeder {
+func New(db database.Database, config *config.Config) *Seeder {
 	batchSize := 500
 
 	return &Seeder{
 		db:        db,
 		batchSize: batchSize,
+		config:    config,
 	}
 }
 
 // TableStream implements stream.RowStream
 type TableStream struct {
-	seeder       *Seeder
-	targetCols   []models.Column
-	rules        map[string]models.GenerationRule
-	totalCount   int
-	currentIndex int
-	currentRow   []any
-	fetcher      *fetcher
-	faker        *fake.Fake
-	err          error
+	seeder         *Seeder
+	targetCols     []models.Column
+	rules          map[string]models.GenerationRule
+	totalCount     int
+	currentIndex   int
+	currentRow     []any
+	fetcher        *fetcher
+	faker          *fake.Fake
+	uniqueCounter  sync.Map
+	countsPerTable map[string]int64
+	// entity for which we are streaming rows right now
+	entity   *models.Entity
+	entities map[string]*models.Entity
+	bounds   map[string]*models.Bound
+	err      error
 }
 
-// Prepare generates column names and returns a stream.RowStream
+// Prepare generates column names and returns a RowStream
 func (s *Seeder) Prepare(
-	entity *models.Entity,
+	table string,
 	count int,
-	rules map[string]models.GenerationRule,
+	entities map[string]*models.Entity,
+	bounds map[string]*models.Bound,
 ) ([]string, stream.RowStream, error) {
+
 	var targetCols []models.Column
 	var colNames []string
+	var totalRows int = count
 
-	err := validateCounts(entity, count)
-	if err != nil {
-		return nil, nil, err
+	rules := make(map[string]models.GenerationRule)
+	countsPerTable := make(map[string]int64)
+
+	entity := entities[table]
+
+	if tableCfg, ok := s.config.Rules.Rules.Tables[entity.Name]; ok {
+		if tableCfg.Count > 0 {
+			totalRows = tableCfg.Count
+		}
+
+		countsPerTable[entity.Name] = int64(totalRows)
+
+		for colName, colRule := range tableCfg.Columns {
+			rules[colName] = models.GenerationRule{
+				Type:         colRule.Type,
+				RegexPattern: colRule.Pattern,
+			}
+		}
 	}
 
 	for _, col := range entity.Columns {
@@ -64,13 +93,23 @@ func (s *Seeder) Prepare(
 	}
 
 	stream := &TableStream{
-		seeder:       s,
-		targetCols:   targetCols,
-		rules:        rules,
-		totalCount:   count,
-		currentIndex: 0,
-		fetcher:      newFetcher(s.db, s.batchSize),
-		faker:        fake.New(),
+		seeder:         s,
+		targetCols:     targetCols,
+		rules:          rules,
+		totalCount:     totalRows,
+		currentIndex:   0,
+		fetcher:        newFetcher(s.db, s.batchSize),
+		faker:          fake.New(),
+		countsPerTable: countsPerTable,
+		entities:       entities,
+		entity:         entity,
+		bounds:         bounds,
+	}
+
+	// TODO: move to pre-ingestion step
+	err := validateCounts(entity, totalRows)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return colNames, stream, nil
@@ -104,14 +143,29 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	}
 
 	if parentTable, _, ok := col.GetFK(); ok {
-		val, err := ts.fetcher.GetParentId(parentTable, col.Name)
-		if err != nil {
-			ts.err = fmt.Errorf("failed to generate foreign key for %s: %w", col.Name, err)
+		var val any
+		var err error
+
+		// 1-1 mapping with FK column
+		if col.HasUniqueConstraint() {
+			key := fmt.Sprintf("%s:%s", ts.entity.Name, col.Name)
+
+			actual, _ := ts.uniqueCounter.LoadOrStore(key, new(atomic.Int64))
+			counter := actual.(*atomic.Int64).Add(1) - 1
+
+			// lookup smallest & biggest PK id
+			lowerId := int64(ts.bounds[parentTable].Lower)
+			upperId := int64(ts.bounds[parentTable].Upper)
+
+			val = calc.HashCounter(counter, lowerId, upperId)
+		} else {
+			// 1-M or M-N mapping with FK table
+			val, err = ts.fetcher.GetParentId(parentTable, col.Name)
+			if err != nil {
+				ts.err = fmt.Errorf("failed to generate foreign key for %s: %w", col.Name, err)
+			}
 		}
 		return val
-		// find type of relationship: 1-1, 1-M or M-N
-		// 1-1: invoke calc.Permute
-		// 1-M or M-N invoke fetcher.GetParentId
 	}
 
 	// Fallback to base type defaults
@@ -141,10 +195,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 		return gofakeit.IPv4Address()
 
 	case strings.Contains(baseType, "bpchar"), strings.Contains(baseType, "char"):
-		// Handle CHAR(n) / bpchar fixed lengths using Precision
-		if col.Type.Precision != nil && *col.Type.Precision > 0 && *col.Type.Precision <= 3 {
-			return gofakeit.LetterN(uint(*col.Type.Precision))
-		} else if col.Type.Length != nil {
+		if col.Type.Length != nil {
 			val, err := ts.faker.LetterN(col.Name, uint(*col.Type.Length))
 			if err != nil {
 				ts.err = err
@@ -155,7 +206,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 
 	case strings.Contains(baseType, "varchar"):
 		if col.Type.Length != nil {
-			return gofakeit.LetterN(uint(*col.Type.Length))
+			return gofakeit.Sentence(int(*col.Type.Length))
 		}
 
 	default:

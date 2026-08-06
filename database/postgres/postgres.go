@@ -46,6 +46,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 	SELECT
 		c.table_name,
 		c.column_name,
+		COALESCE(cons.is_primary_key, false) AS is_primary_key,
 		c.column_default,
 		c.data_type,
 		c.udt_name,
@@ -71,6 +72,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				tc.table_schema,
 				tc.table_name,
 				ccu.column_name,
+				bool_or(tc.constraint_type = 'PRIMARY KEY') AS is_primary_key,
 				jsonb_agg(
 					jsonb_build_object(
 						'name',
@@ -159,6 +161,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 		tableMap[r.TableName].Columns = append(tableMap[r.TableName].Columns, Column{
 			Name:                   r.ColumnName,
 			Default:                r.ColumnDefault,
+			IsPrimaryKey:           r.IsPrimaryKey,
 			DataType:               r.DataType,
 			UdtName:                r.UdtName,
 			IsNullable:             r.IsNullable,
@@ -211,9 +214,10 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 					Scale:     c.NumericPrecisionScale,
 					Radix:     c.NumericPrecisionRadix,
 				},
-				Constraint: constraints,
-				Nullable:   nullable,
-				// Default:    *c.Default,
+				Constraint:   constraints,
+				Nullable:     nullable,
+				IsPrimaryKey: c.IsPrimaryKey,
+				// Default:      *c.Default,
 			})
 		}
 
@@ -314,21 +318,21 @@ func (p *postgres) getentitiesqueryV2() string {
 
 func (p *postgres) Ingest(
 	ctx context.Context,
-	entity *models.Entity,
+	entity string,
 	columns []string,
 	stream stream.RowStream,
 ) (int64, error) {
-	// Convert databulk.RowStream -> pgx.CopyFromSource
+	// Convert RowStream -> pgx.CopyFromSource
 	adapter := &pgxCopyAdapter{stream: stream}
 
 	insertedRows, err := p.pg.CopyFrom(
 		ctx,
-		pgx.Identifier{entity.Name},
+		pgx.Identifier{entity},
 		columns,
 		adapter,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("postgres CopyFrom failed for table %s: %w", entity.Name, err)
+		return 0, fmt.Errorf("postgres ingestion failed for '%s': %w\n", entity, err)
 	}
 
 	return insertedRows, nil
@@ -369,7 +373,22 @@ func (p *postgres) SampleSavedIDs(
 	return ids, nil
 }
 
-// Private adapter wrapping databulk.RowStream into pgx.CopyFromSource
+func (p *postgres) GetBounds(ctx context.Context, tableName string, colName string) (int, int, error) {
+	table := pgx.Identifier{tableName}.Sanitize()
+	col := pgx.Identifier{colName}.Sanitize()
+
+	query := fmt.Sprintf("SELECT COALESCE(MIN(%s), 0), COALESCE(MAX(%s), 0) FROM %s", col, col, table)
+
+	var minVal, maxVal int
+	err := p.pg.QueryRow(ctx, query).Scan(&minVal, &maxVal)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get bounds for %s.%s: %w", tableName, colName, err)
+	}
+
+	return minVal, maxVal, nil
+}
+
+// Private adapter wrapping RowStream into pgx.CopyFromSource
 type pgxCopyAdapter struct {
 	stream stream.RowStream
 }
