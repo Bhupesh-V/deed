@@ -322,20 +322,34 @@ func (p *postgres) Ingest(
 	columns []string,
 	stream stream.RowStream,
 ) (int64, error) {
-	// Convert RowStream -> pgx.CopyFromSource
-	adapter := &pgxCopyAdapter{stream: stream}
+	const chunkSize = 500000 // 500k rows per transaction batch
+	var totalInserted int64
+	for {
+		if err := ctx.Err(); err != nil {
+			return totalInserted, err
+		}
 
-	insertedRows, err := p.pg.CopyFrom(
-		ctx,
-		pgx.Identifier{entity},
-		columns,
-		adapter,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("postgres ingestion failed for '%s': %w\n", entity, err)
+		adapter := newChunkAdapter(stream, chunkSize)
+
+		insertedRows, err := p.pg.CopyFrom(
+			ctx,
+			pgx.Identifier{entity},
+			columns,
+			adapter,
+		)
+		if err != nil {
+			return totalInserted, fmt.Errorf("ingestion failed at %d rows for '%s': %w", totalInserted, entity, err)
+		}
+
+		totalInserted += insertedRows
+
+		// Stop looping when the underlying stream has run out of data
+		if adapter.exhausted {
+			break
+		}
 	}
 
-	return insertedRows, nil
+	return totalInserted, nil
 }
 
 func (p *postgres) SampleSavedIDs(
@@ -389,10 +403,49 @@ func (p *postgres) GetBounds(ctx context.Context, tableName string, colName stri
 }
 
 // Private adapter wrapping RowStream into pgx.CopyFromSource
-type pgxCopyAdapter struct {
-	stream stream.RowStream
+// type pgxCopyAdapter struct {
+// 	stream stream.RowStream
+// }
+
+// func (a *pgxCopyAdapter) Next() bool             { return a.stream.Next() }
+// func (a *pgxCopyAdapter) Values() ([]any, error) { return a.stream.Values() }
+// func (a *pgxCopyAdapter) Err() error             { return a.stream.Err() }
+
+// chunkAdapter wraps your RowStream and limits execution to chunkSize rows per COPY pass.
+type chunkAdapter struct {
+	stream    stream.RowStream
+	limit     int
+	count     int
+	exhausted bool // true when the underlying stream naturally completes
 }
 
-func (a *pgxCopyAdapter) Next() bool             { return a.stream.Next() }
-func (a *pgxCopyAdapter) Values() ([]any, error) { return a.stream.Values() }
-func (a *pgxCopyAdapter) Err() error             { return a.stream.Err() }
+func newChunkAdapter(s stream.RowStream, chunkSize int) *chunkAdapter {
+	return &chunkAdapter{
+		stream: s,
+		limit:  chunkSize,
+	}
+}
+
+func (a *chunkAdapter) Next() bool {
+	// Reached max rows for this chunk; pause execution to let pgx commit
+	if a.count >= a.limit {
+		return false
+	}
+
+	// Advance underlying stream
+	if !a.stream.Next() {
+		a.exhausted = true
+		return false
+	}
+
+	a.count++
+	return true
+}
+
+func (a *chunkAdapter) Values() ([]any, error) {
+	return a.stream.Values()
+}
+
+func (a *chunkAdapter) Err() error {
+	return a.stream.Err()
+}

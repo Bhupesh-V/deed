@@ -90,6 +90,22 @@ func (c *Column) IsOrdered() bool {
 	return slices.Contains([]string{"int", "int8", "int4", "serial"}, c.Type.BaseType)
 }
 
+func (e *Entity) DirectDependencies() []string {
+	seen := make(map[string]bool)
+	var deps []string
+
+	for _, col := range e.Columns {
+		parent, _, isFK := col.FK()
+		// Ignore self-referencing foreign keys and duplicates
+		if isFK && parent != e.Name && !seen[parent] {
+			seen[parent] = true
+			deps = append(deps, parent)
+		}
+	}
+
+	return deps
+}
+
 // GenerationRule defines how a specific column generates fake data.
 type GenerationRule struct {
 	Type         string // "regex", "random_string", "random_int", "email", "foreign_key", "custom"

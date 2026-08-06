@@ -89,9 +89,13 @@ migrate-force:
 	@if [ -z "$(V)" ]; then echo "Error: V is required. Example: make migrate-force V=1"; exit 1; fi
 	migrate -path $(MIGRATIONS_PATH) -database $(DB_URL) force $(V)
 
+## build deed binary
+build:
+	go build -o deed
+
 ## test: Run the seed command with parameters matching the local DB setup
-test:
-	go run main.go seed \
+test: clean env build
+	./deed seed \
 		--dsn $(DB_URL) \
 		--tables=delivery_proofs \
 		--count=1000000 \

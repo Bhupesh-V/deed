@@ -8,9 +8,10 @@ import (
 	"deed/internal/resolver"
 	"deed/internal/seeder"
 	"fmt"
-	"log"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss/tree"
+	"golang.org/x/sync/errgroup"
 )
 
 type Deed struct {
@@ -40,49 +41,71 @@ func (d *Deed) Start(ctx context.Context) error {
 	r := resolver.New()
 	lookUps := d.input.Tables
 
-	// Populate r.Dependencies map
+	// Build tree UI & populate dependencies
 	for _, target := range lookUps {
 		fmt.Printf("\n--- Dependencies for '%s' ---\n\n", target)
 		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
 	}
 
-	fmt.Printf("\n--- Starting Ingestion ---\n\n")
-
-	// Find grouped ingestion order for all tables in lookUps AND all its prerequisites
-	erGroups, err := r.FindIngestionOrder(allEntities, lookUps)
-	if err != nil {
-		log.Fatal(err)
+	if _, err := r.FindIngestionOrder(allEntities, lookUps); err != nil {
+		return fmt.Errorf("schema validation failed: %w", err)
 	}
+
+	tablesToIngest := r.GetRequiredTables(lookUps, allEntities)
+
+	fmt.Printf("\n--- Starting Ingestion (%d tables) ---\n\n", len(tablesToIngest))
+
+	ready := make(map[string]chan struct{}, len(tablesToIngest))
+	for _, table := range tablesToIngest {
+		ready[table] = make(chan struct{})
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	var bounds sync.Map
 
 	s := seeder.New(d.db, d.config)
 
-	bounds := make(map[string]*models.Bound)
-
-	for _, g := range erGroups {
-		for _, table := range g {
+	for _, table := range tablesToIngest {
+		g.Go(func() error {
 			entity := allEntities[table]
 
-			colNames, stream, err := s.Prepare(table, d.input.Count, allEntities, bounds)
-			if err != nil {
-				return err
+			// Wait ONLY for direct dependencies being processed in this run
+			for _, dep := range entity.DirectDependencies() {
+				if ch, ok := ready[dep]; ok {
+					select {
+					case <-ch:
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
 			}
-			// Database layer consumes stream (Postgres uses CopyFrom, MySQL uses batch INSERT)
+
+			colNames, stream, err := s.Prepare(table, d.input.Count, allEntities, &bounds)
+			if err != nil {
+				return fmt.Errorf("prepare failed for %s: %w", table, err)
+			}
+
 			insertedRows, err := d.db.Ingest(ctx, table, colNames, stream)
 			if err != nil {
-				return err
+				return fmt.Errorf("ingest failed for %s: %w", table, err)
 			}
 
 			if entity.PK().IsOrdered() {
 				lb, up, err := d.db.GetBounds(ctx, table, entity.PK().Name)
 				if err != nil {
-					return err
+					return fmt.Errorf("get bounds failed for %s: %w", table, err)
 				}
-				bounds[table] = &models.Bound{Lower: lb, Upper: up}
+
+				bounds.Store(table, &models.Bound{Lower: lb, Upper: up})
 			}
 
 			fmt.Printf("✅ Inserted %d rows into %s\n", insertedRows, table)
-		}
+
+			// Unblock downstream dependents immediately
+			close(ready[table])
+			return nil
+		})
 	}
 
-	return nil
+	return g.Wait()
 }

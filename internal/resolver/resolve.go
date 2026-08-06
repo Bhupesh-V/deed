@@ -288,3 +288,32 @@ func (r *Resolver) GetDependencyTreeUI(tableName string, tables map[string]*mode
 
 	return t
 }
+
+// GetRequiredTables returns a deduplicated list of all target tables and their recursive prerequisites.
+func (r *Resolver) GetRequiredTables(lookups []string, allTables map[string]*models.Entity) []string {
+	lookupSet := make(map[string]struct{})
+
+	if len(lookups) > 0 {
+		// Pull all recursive ancestors using your existing helper
+		deps := r.GetDependenciesForTables(lookups)
+		for dep := range deps {
+			lookupSet[dep] = struct{}{}
+		}
+		// Include the requested target tables themselves
+		for _, l := range lookups {
+			lookupSet[l] = struct{}{}
+		}
+	} else {
+		// If no specific lookups provided, target every table in the schema
+		for t := range allTables {
+			lookupSet[t] = struct{}{}
+		}
+	}
+
+	required := make([]string, 0, len(lookupSet))
+	for table := range lookupSet {
+		required = append(required, table)
+	}
+
+	return required
+}

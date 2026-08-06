@@ -48,7 +48,7 @@ type TableStream struct {
 	// entity for which we are streaming rows right now
 	entity   *models.Entity
 	entities map[string]*models.Entity
-	bounds   map[string]*models.Bound
+	bounds   *sync.Map
 	err      error
 }
 
@@ -57,7 +57,7 @@ func (s *Seeder) Prepare(
 	table string,
 	count int,
 	entities map[string]*models.Entity,
-	bounds map[string]*models.Bound,
+	bounds *sync.Map,
 ) ([]string, stream.RowStream, error) {
 
 	var targetCols []models.Column
@@ -155,9 +155,14 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 			actual, _ := ts.uniqueCounter.LoadOrStore(key, new(atomic.Int64))
 			counter := actual.(*atomic.Int64).Add(1) - 1
 
+			var bds *models.Bound
+			if val, ok := ts.bounds.Load(parentTable); ok {
+				bds = val.(*models.Bound)
+			}
+
 			// lookup smallest & biggest PK id
-			lowerId := int64(ts.bounds[parentTable].Lower)
-			upperId := int64(ts.bounds[parentTable].Upper)
+			lowerId := int64(bds.Lower)
+			upperId := int64(bds.Upper)
 
 			val = calc.HashCounter(counter, lowerId, upperId)
 		} else {

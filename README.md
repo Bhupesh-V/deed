@@ -113,3 +113,19 @@ Sample Output
 
 ```
 ```
+
+## Performance
+
+Reference run from `make test`
+
+```
+✅ Inserted 50 rows into countries
+✅ Inserted 200 rows into users
+✅ Inserted 300 rows into orders
+✅ Inserted 20000000 rows into shipping_carriers
+✅ Inserted 20000000 rows into user_addresses
+✅ Inserted 100 rows into shipments
+✅ Inserted 20000000 rows into shipment_tracking_events
+```
+
+- For 3 tables with 20 million rows it took deed almost 6 min 20 seconds to complete ingestion, leading to **~2 minutes per 20M rows**.
