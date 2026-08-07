@@ -53,8 +53,6 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	tablesToIngest := r.GetRequiredTables(lookUps, allEntities)
 
-	fmt.Printf("\n--- Starting Ingestion (%d tables) ---\n\n", len(tablesToIngest))
-
 	ready := make(map[string]chan struct{}, len(tablesToIngest))
 	for _, table := range tablesToIngest {
 		ready[table] = make(chan struct{})
@@ -63,8 +61,12 @@ func (d *Deed) Start(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 	var bounds sync.Map
 
-	s := seeder.New(d.db, d.config)
+	s, err := seeder.New(d.db, d.config, d.input, allEntities)
+	if err != nil {
+		return err
+	}
 
+	fmt.Printf("\n--- Starting Ingestion (%d tables) ---\n\n", len(tablesToIngest))
 	for _, table := range tablesToIngest {
 		g.Go(func() error {
 			entity := allEntities[table]

@@ -19,12 +19,12 @@ import (
 var (
 	dbURL     string
 	tables    []string
-	count     int
+	count     int64
 	configUrl string
 )
 
 // TODO: fix for longer table list
-func renderBanner(dbURL, configUrl string, tables []string, count int) {
+func renderBanner(dbURL, configUrl string, tables []string, count int64) {
 	// Colors
 	primary := lipgloss.Color("42") // Spring green
 	// muted := lipgloss.Color("241")    // Cool gray
@@ -126,7 +126,7 @@ func init() {
 	// StringSliceVar automatically handles comma-separated values like "app,users"
 	seedCmd.Flags().StringSliceVar(&tables, "tables", []string{}, "Comma-separated list of tables to seed")
 
-	seedCmd.Flags().IntVar(&count, "count", 100, "Number of records to insert")
+	seedCmd.Flags().Int64Var(&count, "count", 100, "Number of records to insert")
 	seedCmd.Flags().StringVar(&configUrl, "config", "", "Path to the configuration file")
 
 	seedCmd.MarkFlagRequired("dsn")

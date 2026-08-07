@@ -24,6 +24,20 @@ Depending on deed's dataset, schema constraints and requested rows we need to va
 
 ### `CHECK`
 
+Filters:
+
+- Reject following clauses:
+  - Enumeration Clause (constraint with `IN`).
+  - Regex Clause
+    -  `CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')`
+    -  `CHECK (email ILIKE '%@%.%')`
+    -  `CHECK (email SIMILAR TO '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}')`
+    -  `CHECK (username !~ '\s')`
+    -  `CHECK (email ~ '^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$')`
+    -  `CHECK (regexp_like(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$', 'i'))`
+
+Process:
+
 - AST parse the CEHCK clause.
 - [algebraic only clauses] Try to satisfy the expression using Z3 https://github.com/mitchellh/go-z3.
 - Reject clauses with regex expression, ask user to move to config.

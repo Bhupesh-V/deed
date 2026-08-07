@@ -14,7 +14,7 @@ type ColumnRule struct {
 
 // TableRule represents table-level generation rules.
 type TableRule struct {
-	Count   int                   `json:"count"`
+	Count   int64                 `json:"count"`
 	Columns map[string]ColumnRule `json:"columns"`
 }
 

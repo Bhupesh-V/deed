@@ -21,17 +21,28 @@ import (
 type Seeder struct {
 	db        database.Database
 	config    *config.Config
+	input     *models.Input
+	entities  map[string]*models.Entity
 	batchSize int
 }
 
-func New(db database.Database, config *config.Config) *Seeder {
+func New(db database.Database, config *config.Config, input *models.Input, entities map[string]*models.Entity) (*Seeder, error) {
 	batchSize := 500
 
-	return &Seeder{
+	s := &Seeder{
 		db:        db,
 		batchSize: batchSize,
 		config:    config,
+		input:     input,
+		entities:  entities,
 	}
+
+	err := s.validateSchema()
+	if err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 // TableStream implements stream.RowStream
@@ -39,8 +50,8 @@ type TableStream struct {
 	seeder         *Seeder
 	targetCols     []models.Column
 	rules          map[string]models.GenerationRule
-	totalCount     int
-	currentIndex   int
+	totalCount     int64
+	currentIndex   int64
 	currentRow     []any
 	fetcher        *fetcher
 	faker          *fake.Fake
@@ -56,14 +67,14 @@ type TableStream struct {
 // Prepare generates column names and returns a RowStream
 func (s *Seeder) Prepare(
 	table string,
-	count int,
+	count int64,
 	entities map[string]*models.Entity,
 	bounds *sync.Map,
 ) ([]string, stream.RowStream, error) {
 
 	var targetCols []models.Column
 	var colNames []string
-	var totalRows int = count
+	var totalRows int64 = count
 
 	rules := make(map[string]models.GenerationRule)
 	countsPerTable := make(map[string]int64)
@@ -107,12 +118,6 @@ func (s *Seeder) Prepare(
 		bounds:         bounds,
 	}
 
-	// TODO: move to pre-ingestion step
-	err := validateCounts(entity, totalRows)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	return colNames, stream, nil
 }
 
@@ -134,7 +139,7 @@ func (ts *TableStream) Next() bool {
 func (ts *TableStream) Values() ([]any, error) { return ts.currentRow, nil }
 func (ts *TableStream) Err() error             { return ts.err }
 
-func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
+func (ts *TableStream) generateValue(col models.Column, rowIndex int64) any {
 	// User Rule takes precedence
 	if rule, exists := ts.rules[col.Name]; exists {
 		// TODO: fix for UNIQUE
@@ -219,41 +224,54 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	return ""
 }
 
-func validateCounts(entity *models.Entity, count int) error {
+func (s *Seeder) validateSchema() error {
 	var errs []error
 
-	for _, col := range entity.Columns {
-		var datasetsize int64
+	for _, e := range s.entities {
+		var count int64
 
-		baseType := strings.ToLower(col.Type.BaseType)
-
-		switch baseType {
-		case "numeric", "decimal", "int", "int4", "int8":
-			if col.Type.Precision != nil && *col.Type.Precision > 0 {
-				datasetsize = calc.GetNumericDatasetSize(int64(*col.Type.Precision), int64(*col.Type.Scale), int64(*col.Type.Radix))
+		if tableCfg, ok := s.config.Rules.Rules.Tables[e.Name]; ok {
+			if tableCfg.Count > 0 {
+				count = tableCfg.Count
+			} else {
+				count = s.input.Count
 			}
-
-		case "bpchar", "char", "varchar":
-			if col.Type.Length != nil {
-				datasetsize = calc.TotalCombinations(52, float64(*col.Type.Length))
-			}
-
-		default:
-			return nil
 		}
 
-		// TODO: add special guard for UNIQUE
-		if int64(count) > datasetsize {
-			errs = append(errs,
-				fmt.Errorf(
-					"[%s] has a column [%s] of type [%s] which limits possible values to [%d], however [%d] rows were requested",
-					entity.Name,
-					col.Name,
-					col.Type.BaseType,
-					datasetsize,
-					count,
-				),
-			)
+		for _, col := range e.Columns {
+			// fmt.Println("came here for col", col.Name)
+			var datasetsize int64
+
+			baseType := strings.ToLower(col.Type.BaseType)
+
+			switch baseType {
+			case "numeric", "decimal", "int", "int4", "int8":
+				if col.Type.Precision != nil && *col.Type.Precision > 0 {
+					datasetsize = calc.GetNumericDatasetSize(int64(*col.Type.Precision), int64(*col.Type.Scale), int64(*col.Type.Radix))
+				}
+
+			case "bpchar", "char", "varchar":
+				if col.Type.Length != nil {
+					datasetsize = calc.TotalCombinations(52, float64(*col.Type.Length))
+				}
+
+			default:
+				continue
+			}
+
+			// TODO: add special guard for UNIQUE
+			if count > datasetsize {
+				errs = append(errs,
+					fmt.Errorf(
+						"[%s] has a column [%s] of type [%s] which limits possible values to [%d], however [%d] rows were requested",
+						e.Name,
+						col.Name,
+						col.Type.BaseType,
+						datasetsize,
+						count,
+					),
+				)
+			}
 		}
 	}
 
