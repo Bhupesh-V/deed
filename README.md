@@ -45,7 +45,7 @@ Since the choice of how you write SQL queries and indexes completely depends on 
 
 Instead, your ideal workflow should look like,
 
-1. Start a container with your up-to-date schema applied.
+1. Start a container with your up-to-date schema applied. Run any and all DDL/DML migrations.
 2. Have list of tables you want to generate data for, these are the tables that you have to optimise your queries/indexes for.
 3. Seed the data using deed.
 4. Rewrite and test your queries/indexes.

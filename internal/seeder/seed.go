@@ -147,7 +147,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int) any {
 	isColUnique := col.HasUniqueConstraint()
 	uniqueCounterKey := fmt.Sprintf("%s:%s", ts.entity.Name, col.Name)
 
-	if parentTable, _, ok := col.FK(); ok {
+	if parentTable, ok := col.FK(); ok {
 		var val any
 		var err error
 

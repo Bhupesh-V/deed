@@ -51,6 +51,8 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 		c.data_type,
 		c.udt_name,
 		c.is_nullable,
+		c.is_identity,
+		c.identity_generation,
 		c.character_maximum_length,
 		c.numeric_precision,
 		c.numeric_precision_radix,
@@ -165,6 +167,8 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 			DataType:               r.DataType,
 			UdtName:                r.UdtName,
 			IsNullable:             r.IsNullable,
+			IsIdentity:             r.IsIdentity,
+			IdentityGeneration:     r.IdentityGeneration,
 			CharacterMaximumLength: r.CharacterMaximumLength,
 			NumericPrecision:       r.NumericPrecision,
 			NumericPrecisionRadix:  r.NumericPrecisionRadix,
@@ -204,6 +208,10 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 			if c.IsNullable == "YES" {
 				nullable = true
 			}
+			var hasIdentity bool
+			if c.IsIdentity == "YES" && c.IdentityGeneration != nil {
+				hasIdentity = true
+			}
 
 			cols = append(cols, models.Column{
 				Name: c.Name,
@@ -217,7 +225,8 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				Constraint:   constraints,
 				Nullable:     nullable,
 				IsPrimaryKey: c.IsPrimaryKey,
-				// Default:      *c.Default,
+				Default:      c.Default,
+				HasIdentity:  hasIdentity,
 			})
 		}
 

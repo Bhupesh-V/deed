@@ -16,6 +16,8 @@ type Column struct {
 	DataType               string
 	UdtName                string
 	IsNullable             string
+	IsIdentity             string
+	IdentityGeneration     *string
 	CharacterMaximumLength *int32 // Can be null
 	NumericPrecision       *int   // Can be null
 	NumericPrecisionRadix  *int   // Can be null
@@ -47,6 +49,8 @@ type FlatRow struct {
 	DataType               string
 	UdtName                string
 	IsNullable             string
+	IsIdentity             string
+	IdentityGeneration     *string
 	CharacterMaximumLength *int32
 	NumericPrecision       *int
 	NumericPrecisionRadix  *int

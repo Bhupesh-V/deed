@@ -18,7 +18,8 @@ type Column struct {
 	Type         DataType
 	Constraint   []Constraint
 	Nullable     bool
-	Default      string
+	Default      *string
+	HasIdentity  bool
 	IsPrimaryKey bool
 }
 
@@ -40,28 +41,31 @@ type Constraint struct {
 
 // FK returns Foreign Key (FK) relationship details directly from a column's constraints
 // TODO: handle composite FKs
-func (c *Column) FK() (parentTable string, parentCol string, ok bool) {
+func (c *Column) FK() (parentTable string, ok bool) {
 	for _, ctr := range c.Constraint {
 		if ctr.Type == ForeignKey.String() && ctr.ReferencedTable != nil && *ctr.ReferencedTable != "" {
-			// TODO: unreliable assumption!!!!
-			refCol := "id"
-			if ctr.ReferencedColumn != nil && *ctr.ReferencedColumn != "" {
-				refCol = *ctr.ReferencedColumn
-			}
-			return *ctr.ReferencedTable, refCol, true
+			return *ctr.ReferencedTable, true
 		}
 	}
-	return "", "", false
+	return "", false
 }
 
 func (c *Column) IsAutoIncrement() bool {
 	dt := strings.ToLower(c.Type.BaseType)
-	return strings.Contains(dt, "serial")
+
+	if c.IsPrimaryKey && c.Default != nil {
+		return true
+	} else if c.HasIdentity {
+		return true
+	} else {
+		strings.Contains(dt, "serial")
+	}
+	return false
 }
 
 func (c *Column) HasUniqueConstraint() bool {
 	for _, c := range c.Constraint {
-		if c.Type == "UNIQUE" {
+		if c.Type == Unique.String() {
 			return true
 		}
 	}
@@ -88,7 +92,7 @@ func (e *Entity) DirectDependencies() []string {
 	var deps []string
 
 	for _, col := range e.Columns {
-		parent, _, isFK := col.FK()
+		parent, isFK := col.FK()
 		// Ignore self-referencing foreign keys and duplicates
 		if isFK && parent != e.Name && !seen[parent] {
 			seen[parent] = true
