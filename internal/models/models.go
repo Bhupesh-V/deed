@@ -38,13 +38,6 @@ type Constraint struct {
 	ReferencedColumn *string
 }
 
-type ForeignKeyDetails struct {
-	ParentTable   string
-	ColumnMapping map[string]string // local_column -> parent_column
-	OnDelete      string            // e.g., "CASCADE", "SET NULL"
-	OnUpdate      string            // e.g., "RESTRICT"
-}
-
 // FK returns Foreign Key (FK) relationship details directly from a column's constraints
 // TODO: handle composite FKs
 func (c *Column) FK() (parentTable string, parentCol string, ok bool) {

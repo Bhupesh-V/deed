@@ -83,3 +83,45 @@ func GetNumericDatasetSize(precision, scale, radix int64) int64 {
 	// Round to nearest integer to clear out floating-point inaccuracies
 	return int64(math.Round(size))
 }
+
+var (
+	big2  = big.NewInt(2)
+	big13 = big.NewInt(13)
+)
+
+// TotalCombinationsBig calculates base^exp (e.g., 52^N)
+func TotalCombinationsBig(base, exp int64) *big.Int {
+	b := big.NewInt(base)
+	e := big.NewInt(exp)
+	return new(big.Int).Exp(b, e, nil)
+}
+
+// PermuteBig creates a strict 1-to-1 permutation across [0, maxRows-1].
+// Mathematically guaranteed to have ZERO collisions/duplicates.
+func PermuteBig(counter, maxRows *big.Int) *big.Int {
+	if maxRows.Sign() <= 0 {
+		return big.NewInt(0)
+	}
+
+	// Generate multiplier A roughly equal to (maxRows / 3)
+	A := new(big.Int).Div(maxRows, big.NewInt(3))
+
+	// Ensure A is coprime to 52^N (must NOT be divisible by 2 or 13)
+	if new(big.Int).Mod(A, big2).Sign() == 0 {
+		A.Add(A, big.NewInt(1)) // Make odd
+	}
+	if new(big.Int).Mod(A, big13).Sign() == 0 {
+		A.Add(A, big2) // Shift away from multiple of 13
+	}
+
+	// Add an offset C so counter=0 doesn't start at "AAAA..."
+	C := new(big.Int).Div(maxRows, big.NewInt(7))
+	if new(big.Int).Mod(C, big2).Sign() == 0 {
+		C.Add(C, big.NewInt(1))
+	}
+
+	// Compute (counter * A + C) % maxRows
+	result := new(big.Int).Mul(counter, A)
+	result.Add(result, C)
+	return result.Mod(result, maxRows)
+}

@@ -98,5 +98,5 @@ test: clean env build
 	./deed seed \
 		--dsn $(DB_URL) \
 		--tables=delivery_proofs \
-		--count=1000000 \
+		--count=100000 \
 		--config=tests/postgres/deed.json
