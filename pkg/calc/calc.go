@@ -53,7 +53,7 @@ func HashCounter(counter, min, max int64) int64 {
 
 // GetNumericDatasetSize determines total unique steps available by utilizing the explicit number base system (radix).
 func GetNumericDatasetSize(precision, scale, radix int64) int64 {
-	// 1. If Radix is 2, it is a binary system (PostgreSQL Integer types like smallint, int, bigint)
+	// If Radix is 2, it is a binary system (PostgreSQL Integer types like smallint, int, bigint)
 	if radix == 2 {
 		// Calculate the full binary range space: 2^precision
 		size := math.Pow(2, float64(precision))
@@ -65,7 +65,7 @@ func GetNumericDatasetSize(precision, scale, radix int64) int64 {
 		return int64(size)
 	}
 
-	// 2. If Radix is 10, it is a decimal system (PostgreSQL NUMERIC / DECIMAL types)
+	// If Radix is 10, it is a decimal system (PostgreSQL NUMERIC / DECIMAL types)
 	p := float64(precision)
 	s := float64(scale)
 

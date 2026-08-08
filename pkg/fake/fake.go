@@ -58,3 +58,33 @@ func (f *Fake) LetterN(key string, n uint) (string, error) {
 
 	return string(out), nil
 }
+
+func (f *Fake) SeqIdToLetterN(seqIdx *big.Int, n uint) (string, error) {
+	if n == 0 {
+		n = 1
+	}
+
+	total := int64(len(alphabet))
+	maxRows := calc.TotalCombinationsBig(total, int64(n))
+
+	// Check bounds
+	if seqIdx.Cmp(maxRows) >= 0 || seqIdx.Sign() < 0 {
+		return "", fmt.Errorf("index %s out of bounds for length %d", seqIdx.String(), n)
+	}
+
+	// Permute the counter across the space
+	randomIndex := calc.PermuteBig(seqIdx, maxRows)
+
+	// Base-52 encode into alphabet characters
+	out := make([]byte, n)
+	tempIndex := new(big.Int).Set(randomIndex)
+	big52 := big.NewInt(total)
+	mod := new(big.Int)
+
+	for i := int(n) - 1; i >= 0; i-- {
+		tempIndex.DivMod(tempIndex, big52, mod)
+		out[i] = alphabet[mod.Int64()]
+	}
+
+	return string(out), nil
+}

@@ -53,7 +53,7 @@ func (c *Column) FK() (parentTable string, ok bool) {
 func (c *Column) IsAutoIncrement() bool {
 	dt := strings.ToLower(c.Type.BaseType)
 
-	if c.IsPrimaryKey && c.Default != nil {
+	if c.IsPrimaryKey && c.Default != nil && c.Type.BaseType != "uuid" {
 		return true
 	} else if c.HasIdentity {
 		return true

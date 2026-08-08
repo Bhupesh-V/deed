@@ -39,8 +39,7 @@ Filters:
 Process:
 
 - AST parse the CEHCK clause.
-- [algebraic only clauses] Try to satisfy the expression using Z3 https://github.com/mitchellh/go-z3.
-- Reject clauses with regex expression, ask user to move to config.
+- Try to satisfy the expression using Z3 https://github.com/mitchellh/go-z3.
 
 
 ## Debugging

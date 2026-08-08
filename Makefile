@@ -7,6 +7,8 @@ DB_PORT = 5433
 DB_VOLUME = deed-postgres-v1
 MIGRATIONS_PATH = tests/postgres/migrations
 DB_URL = "postgres://$(DB_USER):$(DB_PASSWORD)@127.0.0.1:$(DB_PORT)/$(DB_NAME)?sslmode=disable"
+COVERAGE_FILE = coverage.out
+COVERAGE_HTML = coverage.html
 
 .PHONY: env clean db-up db-down db-logs migrate-up migrate-down migrate-version migrate-force help
 
@@ -93,10 +95,18 @@ migrate-force:
 build:
 	go build -o deed
 
-## test: Run the seed command with parameters matching the local DB setup
-test: clean env build
+## run: Run the seed command with parameters matching the local DB setup
+run: clean env build
 	./deed seed \
 		--dsn $(DB_URL) \
 		--tables=delivery_proofs \
 		--count=100000 \
 		--config=tests/postgres/deed.json
+
+## test: Run unit-tests suite
+test:
+	go test -race ./... -coverpkg=./... -coverprofile=$(COVERAGE_FILE)
+
+## coverage: generage unit-tests coverage report
+coverage:
+	go tool cover -html $(COVERAGE_FILE) -o $(COVERAGE_HTML)

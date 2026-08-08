@@ -2,9 +2,24 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Make Clean",
+            "type": "shell",
+            "command": "make clean"
+        },
+        {
+            "label": "Make Env",
+            "type": "shell",
+            "command": "make env"
+        },
+        {
             "label": "Build Deed",
             "type": "shell",
             "command": "go build -gcflags='all=-N -l' -o deed",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Make Clean",
+                "Make Env"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true

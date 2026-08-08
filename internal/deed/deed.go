@@ -92,7 +92,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				return fmt.Errorf("ingest failed for %s: %w", table, err)
 			}
 
-			if entity.PK().IsOrdered() {
+			if entity.PK() != nil {
 				lb, up, err := d.db.GetBounds(ctx, table, entity.PK().Name)
 				if err != nil {
 					return fmt.Errorf("get bounds failed for %s: %w", table, err)

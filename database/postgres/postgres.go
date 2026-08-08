@@ -400,7 +400,15 @@ func (p *postgres) GetBounds(ctx context.Context, tableName string, colName stri
 	table := pgx.Identifier{tableName}.Sanitize()
 	col := pgx.Identifier{colName}.Sanitize()
 
-	query := fmt.Sprintf("SELECT COALESCE(MIN(%s), 0), COALESCE(MAX(%s), 0) FROM %s", col, col, table)
+	query := fmt.Sprintf(`
+		SELECT
+			COALESCE(MIN(seq), 0),
+			COALESCE(MAX(seq), 0)
+		FROM (
+			SELECT (row_number() OVER (ORDER BY %s)) AS seq
+			FROM %s
+		) sub
+	`, col, table)
 
 	var minVal, maxVal int
 	err := p.pg.QueryRow(ctx, query).Scan(&minVal, &maxVal)
@@ -410,15 +418,6 @@ func (p *postgres) GetBounds(ctx context.Context, tableName string, colName stri
 
 	return minVal, maxVal, nil
 }
-
-// Private adapter wrapping RowStream into pgx.CopyFromSource
-// type pgxCopyAdapter struct {
-// 	stream stream.RowStream
-// }
-
-// func (a *pgxCopyAdapter) Next() bool             { return a.stream.Next() }
-// func (a *pgxCopyAdapter) Values() ([]any, error) { return a.stream.Values() }
-// func (a *pgxCopyAdapter) Err() error             { return a.stream.Err() }
 
 // chunkAdapter wraps your RowStream and limits execution to chunkSize rows per COPY pass.
 type chunkAdapter struct {

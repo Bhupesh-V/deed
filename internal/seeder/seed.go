@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"sync"
 	"sync/atomic"
 
 	"deed/pkg/calc"
 	"deed/pkg/fake"
+	"deed/pkg/uuid"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
@@ -149,38 +151,42 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int64) any {
 		}
 	}
 
-	isColUnique := col.HasUniqueConstraint()
 	uniqueCounterKey := fmt.Sprintf("%s:%s", ts.entity.Name, col.Name)
 
 	if parentTable, ok := col.FK(); ok {
-		var val any
-		var err error
-
 		parent := ts.entities[parentTable]
 
-		// 1-1 mapping with FK column
-		if isColUnique && parent.PK().IsOrdered() {
-			actual, _ := ts.uniqueCounter.LoadOrStore(uniqueCounterKey, new(atomic.Int64))
-			counter := actual.(*atomic.Int64).Add(1) - 1
+		actual, _ := ts.uniqueCounter.LoadOrStore(uniqueCounterKey, new(atomic.Int64))
+		counter := actual.(*atomic.Int64).Add(1) - 1
 
-			var bds *models.Bound
-			// the parent table will always be processed before child so no way the bounds won't exist
-			if val, ok := ts.bounds.Load(parentTable); ok {
-				bds = val.(*models.Bound)
-			}
-
-			lowerId := int64(bds.Lower)
-			upperId := int64(bds.Upper)
-
-			val = calc.HashCounter(counter, lowerId, upperId)
-		} else {
-			// 1-M or M-N mapping with FK column
-			val, err = ts.fetcher.GetParentId(parentTable, col.Name)
-			if err != nil {
-				ts.err = fmt.Errorf("failed to generate foreign key for %s: %w", col.Name, err)
-			}
+		var bds *models.Bound
+		if valBound, ok := ts.bounds.Load(parentTable); ok {
+			bds = valBound.(*models.Bound)
 		}
-		return val
+
+		lowerId := int64(bds.Lower)
+		upperId := int64(bds.Upper)
+		parentCount := upperId - lowerId + 1
+
+		if parent.PK().IsOrdered() {
+			// Integer/Serial PKs: 1-based bounds [lowerId, upperId]
+			return calc.HashCounter(counter+lowerId, lowerId, upperId)
+
+		} else if parent.PK().Type.BaseType == "uuid" {
+			// UUID PKs: 1-based bounds [1, parentCount]
+			valInt := calc.HashCounter(counter+1, 1, parentCount)
+			return uuid.SeqIdToUUID(uint64(valInt))
+
+		} else {
+			// String PKs: 0-based bounds [0, parentCount - 1]
+			parentIdx := calc.HashCounter(counter, 0, parentCount-1)
+
+			seqIdx, err := ts.faker.SeqIdToLetterN(big.NewInt(parentIdx), uint(*parent.PK().Type.Length))
+			if err != nil {
+				ts.err = fmt.Errorf("Failed to decode string for FK %s: %v", col.Name, err)
+			}
+			return seqIdx
+		}
 	}
 
 	// Fallback to base type defaults
@@ -191,7 +197,7 @@ func (ts *TableStream) generateValue(col models.Column, rowIndex int64) any {
 		return rowIndex + 1
 
 	case "uuid":
-		return gofakeit.UUID()
+		return uuid.SeqIdToUUID(uint64(rowIndex))
 
 	case "bool":
 		// TODO: figure out bool Percentage
