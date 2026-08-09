@@ -4,9 +4,9 @@ import (
 	"context"
 	"deed/database"
 	"deed/internal/config"
+	"deed/internal/feeder"
 	"deed/internal/models"
 	"deed/internal/resolver"
-	"deed/internal/seeder"
 	"fmt"
 	"sync"
 
@@ -61,7 +61,7 @@ func (d *Deed) Start(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 	var bounds sync.Map
 
-	s, err := seeder.New(d.db, d.config, d.input, allEntities)
+	f, err := feeder.New(d.db, d.config, d.input, allEntities)
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				}
 			}
 
-			colNames, stream, err := s.Prepare(table, d.input.Count, allEntities, &bounds)
+			colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds)
 			if err != nil {
 				return fmt.Errorf("prepare failed for %s: %w", table, err)
 			}
