@@ -85,12 +85,12 @@ build:
 # Recreates test db & builds deed binary
 build-env: clean env build
 
-# Run the seed command with parameters matching the local DB setup
+# Ingest 4 tables with 1 million rows (use this for basic sanity)
 run: build-env
-    ./deed seed \
+    time ./deed seed \
         --dsn "{{DB_URL}}" \
         --tables=proof_verifications \
-        --count=100000 \
+        --count=1000000 \
         --config=tests/postgres/deed.json
 
 # Ingest one table with 20M rows

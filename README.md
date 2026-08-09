@@ -2,14 +2,14 @@
 
 ## Why?
 
-- Your database is a heavy lifter, i.e you have to constantly optimise your **SQL queries** and **indexes**.
+- You are scaling and your database is a heavy lifter i.e, you have to constantly optimise your **SQL queries** and **Indexes**.
 - You don't have access to production data due to compliance issues.
 - You are a master procastinator on load testing your APIs.
 
 ## Why not?
 
-- You don't know how to use a modern RDBMS.
-- Strict or double validation of business data on API/UI level.
+- You have un-restricted access to the production database.
+- You have enabled strict (or double) validation of business data on API/UI level.
 
 ## For whom?
 
@@ -24,22 +24,21 @@ TODO
 
 ### Postgres
 
-
+<!-- 
 | Constraint Type | Description | Common SQL Syntax Example | Tool Coverage |
 | :--- | :--- | :--- | :---: |
-| **Primary Key** | Uniquely identifies each row in a table. Implicitly enforces `NOT NULL` and `UNIQUE`. | `PRIMARY KEY (id)` | [ ] Supported |
-| **Foreign Key** | Links data in one table to a primary/unique key in another, maintaining relationship consistency. | `FOREIGN KEY (user_id) REFERENCES users(id)` | [ ] Supported |
-| **Unique** | Ensures all values in a column or set of columns are distinct (typically allows `NULL`s depending on SQL engine). | `UNIQUE (email)` | [ ] Supported |
+| **Primary Key** | Uniquely identifies each row in a table. Implicitly enforces `NOT NULL` and `UNIQUE`. | `PRIMARY KEY (id)` | [x] Supported |
+| **Foreign Key** | Links data in one table to a primary/unique key in another, maintaining relationship consistency. | `FOREIGN KEY (user_id) REFERENCES users(id)` | [x] Supported |
+| **Unique** | Ensures all values in a column or set of columns are distinct (typically allows `NULL`s depending on SQL engine). | `UNIQUE (email)` | [x] Supported |
 | **Not Null** | Prevents `NULL` (missing) values from being stored in a column. | `email VARCHAR(255) NOT NULL` | [ ] Supported |
 | **Check** | Evaluates a Boolean expression against inserted or updated row data. | `CHECK (age >= 18)` | [ ] Supported |
 | **Default** | Automatically assigns a preset value if no explicit value is supplied during `INSERT`. | `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | [ ] Supported |
 | **Exclusion Constraint** | Guarantees that if two rows are compared on specified columns using specific operators, at least one returns false (e.g., preventing overlapping time intervals in PostgreSQL). | `EXCLUDE USING gist (room_id WITH =, reservation_period WITH &&)` | [ ] Supported |
-| **Domain Constraint** | Restricts data values to a named domain with custom constraints/types. | `CREATE DOMAIN pos_int AS INT CHECK (VALUE > 0);` | [ ] Supported |
-| **Generated/Computed Column** | Constrains a column value to always be derived from a specific expression or formula. | `total DECIMAL(10,2) GENERATED ALWAYS AS (price * qty)` | [ ] Supported |
+| **Domain Constraint** | Restricts data values to a named domain with custom constraints/types. | `CREATE DOMAIN pos_int AS INT CHECK (VALUE > 0);` | [ ] Supported | -->
 
 ## Usage
 
-### Ideology
+### Ideal Workflow
 
 Since the choice of how you write SQL queries and indexes completely depends on how your UI/UX looks like (which changes often), **each deed run is supposed to be targetted, meaning you don't ingest data in your whole schema in one go and never look back.**
 
@@ -95,7 +94,7 @@ deed works well if you already have a config setup as per your use-case. Create 
 The config is pretty intutive:
 
 
-The **deed config can be committed to a git repository** and shared with team members. However, its higly recommended that you copy your team config, tune any parameters and supply the copy to deed, this aligns with the deed [ideology](#ideology).
+The **deed config can be committed to a git repository** and shared with your team. However, its higly recommended that you copy your team config first before using deed, tune any parameters and supply the copy to deed, this aligns well with deed's [workflow](#ideal-workflow).
 
 ### Seed data
 
@@ -116,16 +115,37 @@ Sample Output
 
 ## Performance
 
-Reference run from `make test`
+Reference run from `just run`
 
 ```
+--- Dependencies for 'proof_verifications' ---
+
+🔗 proof_verifications
+╰── 🔗 delivery_proofs
+    ╰── 🔗 shipment_tracking_events
+        ╰── 🔗 shipments
+            ├── 🔗 orders
+            │   ╰── 🔗 users
+            ├── 🔗 shipping_carriers
+            ╰── 🔗 user_addresses
+                ├── 🔗 users
+                ╰── 🔗 countries
+
+--- Starting Ingestion (9 tables) ---
+
 ✅ Inserted 50 rows into countries
 ✅ Inserted 200 rows into users
 ✅ Inserted 300 rows into orders
-✅ Inserted 20000000 rows into shipping_carriers
-✅ Inserted 20000000 rows into user_addresses
+✅ Inserted 1000000 rows into shipping_carriers
+✅ Inserted 1000000 rows into user_addresses
 ✅ Inserted 100 rows into shipments
-✅ Inserted 20000000 rows into shipment_tracking_events
+✅ Inserted 1000000 rows into shipment_tracking_events
+✅ Inserted 1000000 rows into delivery_proofs
+✅ Inserted 100 rows into proof_verifications
+
+real    0m35.714s
+user    2m20.426s
+sys     0m12.127s
 ```
 
-- For 3 tables with 20 million rows it took deed almost 6 min 20 seconds to complete ingestion, leading to **~2 minutes per 20M rows**.
+- For 3 tables with 1 million rows it took deed almost 35 seconds to complete ingestion.
