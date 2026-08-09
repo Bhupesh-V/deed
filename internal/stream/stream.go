@@ -54,6 +54,7 @@ type Stream struct {
 func New(
 	ctx context.Context,
 	totalRows int64,
+	startOffset int64,
 	batchSize int,
 	targetCols []models.Column,
 	entity *models.Entity,
@@ -81,12 +82,12 @@ func New(
 		baseTime:   baseTime,
 	}
 
-	go st.startWorkerPool(ctx, totalRows, batchSize, workers)
+	go st.startWorkerPool(ctx, totalRows, startOffset, batchSize, workers)
 
 	return st
 }
 
-func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSize int, workers int) {
+func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, startOffset int64, batchSize int, workers int) {
 	defer close(st.batchChan)
 
 	var wg sync.WaitGroup
@@ -108,8 +109,8 @@ func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSiz
 				default:
 				}
 
-				startRow := batchIdx * chunkSize
-				endRow := min(startRow+chunkSize, totalRows)
+				startRow := startOffset + (batchIdx * chunkSize)
+				endRow := min(startRow+chunkSize, startOffset+totalRows)
 				currentBatchSize := endRow - startRow
 
 				batch := make([][]any, currentBatchSize)
@@ -171,13 +172,12 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 		}
 	}
 
-	uniqueCounterKey := fmt.Sprintf("%s:%s", st.entity.Name, col.Name)
+	// uniqueCounterKey := fmt.Sprintf("%s:%s", st.entity.Name, col.Name)
 
 	if parentTable, ok := col.FK(); ok {
 		parent := st.entities[parentTable]
 
-		actual, _ := st.uniqueCounter.LoadOrStore(uniqueCounterKey, new(atomic.Int64))
-		counter := actual.(*atomic.Int64).Add(1) - 1
+		counter := rowIndex - 1
 
 		var bds *models.Bound
 		if valBound, ok := st.bounds.Load(parentTable); ok {
@@ -198,18 +198,17 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 			return uuid.SeqIdToUUID(uint64(valInt))
 
 		} else {
-			// String PKs: 0-based bounds [0, parentCount - 1]
-			parentIdx := calc.HashCounter(counter, 0, parentCount-1)
+			// Use 1-based bounds [1, parentCount] to match 1-based parent row indices
+			parentIdx := calc.HashCounter(counter+1, 1, parentCount)
 
-			seqIdx, err := st.faker.SeqIdToLetterN(big.NewInt(parentIdx), uint(*parent.PK().Type.Length))
+			seqId, err := st.faker.SeqIdToLetterN(big.NewInt(parentIdx), uint(*parent.PK().Type.Length))
 			if err != nil {
 				errVal := fmt.Errorf("Failed to decode string for FK %s: %v", col.Name, err)
 				if st.err.CompareAndSwap(nil, &errVal) {
 					st.cancel()
 				}
-
 			}
-			return seqIdx
+			return seqId
 		}
 	}
 
@@ -243,7 +242,7 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 
 	case "bpchar", "char", "varchar":
 		if col.Type.Length != nil {
-			val, err := st.faker.LetterN(uniqueCounterKey, uint(*col.Type.Length))
+			val, err := st.faker.SeqIdToLetterN(big.NewInt(rowIndex), uint(*col.Type.Length))
 			if err != nil {
 				if st.err.CompareAndSwap(nil, &err) {
 					st.cancel()

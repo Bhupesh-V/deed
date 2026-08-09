@@ -99,6 +99,7 @@ func (f *Feeder) Prepare(
 	ctx context.Context,
 	table string,
 	count int64,
+	startOffset int64,
 	entities map[string]*models.Entity,
 	bounds *sync.Map,
 ) ([]string, stream.RowStream, error) {
@@ -140,6 +141,7 @@ func (f *Feeder) Prepare(
 	st := stream.New(
 		ctx,
 		totalRows,
+		startOffset,
 		channelBatchSize,
 		targetCols,
 		entity,
