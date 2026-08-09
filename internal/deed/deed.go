@@ -9,10 +9,13 @@ import (
 	"deed/internal/resolver"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/charmbracelet/lipgloss/tree"
 	"golang.org/x/sync/errgroup"
 )
+
+const numWorkersPerTable = 10
 
 type Deed struct {
 	db     database.Database
@@ -82,15 +85,67 @@ func (d *Deed) Start(ctx context.Context) error {
 				}
 			}
 
-			colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds)
-			if err != nil {
-				return fmt.Errorf("prepare failed for %s: %w", table, err)
+			// Determine total row count for this table
+			totalCount := d.input.Count
+			if tableCfg, ok := d.config.Rules.Rules.Tables[entity.Name]; ok && tableCfg.Count > 0 {
+				totalCount = tableCfg.Count
 			}
 
-			insertedRows, err := d.db.Ingest(ctx, table, colNames, stream)
-			if err != nil {
-				return fmt.Errorf("ingest failed for %s: %w", table, err)
+			// Determine parallelism for this table
+			workers := numWorkersPerTable
+			if totalCount < 100000 {
+				workers = 1 // Force single COPY stream for lookup/small tables
 			}
+
+			chunkSize := totalCount / int64(workers)
+			var totalInserted atomic.Int64
+			// var colNames []string
+
+			tableGroup, tableCtx := errgroup.WithContext(ctx)
+
+			for w := 0; w < workers; w++ {
+				workerID := w
+				startOffset := int64(workerID) * chunkSize
+				rowsForWorker := chunkSize
+				if workerID == workers-1 {
+					// Handle remaining row count division remainders on last worker
+					rowsForWorker = totalCount - startOffset
+				}
+
+				tableGroup.Go(func() error {
+					// NOTE: Pass startOffset into feeder so row generator sequences remain deterministic
+					cols, stream, err := f.Prepare(tableCtx, table, rowsForWorker, startOffset, allEntities, &bounds)
+					if err != nil {
+						return fmt.Errorf("prepare chunk failed for %s (worker %d): %w", table, workerID, err)
+					}
+
+					// if workerID == 0 {
+					// 	colNames = cols
+					// }
+
+					inserted, err := d.db.Ingest(tableCtx, table, cols, stream)
+					if err != nil {
+						return fmt.Errorf("ingest chunk failed for %s (worker %d): %w", table, workerID, err)
+					}
+
+					totalInserted.Add(inserted)
+					return nil
+				})
+			}
+
+			if err := tableGroup.Wait(); err != nil {
+				return err
+			}
+
+			// colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds)
+			// if err != nil {
+			// 	return fmt.Errorf("prepare failed for %s: %w", table, err)
+			// }
+
+			// insertedRows, err := d.db.Ingest(ctx, table, colNames, stream)
+			// if err != nil {
+			// 	return fmt.Errorf("ingest failed for %s: %w", table, err)
+			// }
 
 			if entity.PK() != nil {
 				lb, up, err := d.db.GetBounds(ctx, table, entity.PK().Name)
@@ -101,7 +156,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				bounds.Store(table, &models.Bound{Lower: lb, Upper: up})
 			}
 
-			fmt.Printf("✅ Inserted %d rows into %s\n", insertedRows, table)
+			fmt.Printf("✅ Inserted %d rows into %s\n", totalInserted.Load(), table)
 
 			// Unblock downstream dependents immediately
 			close(ready[table])
