@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"net"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/brianvoe/gofakeit/v6"
 )
@@ -45,6 +47,8 @@ type Stream struct {
 	batchIdx     int
 	currentRow   []any
 	err          atomic.Pointer[error]
+	cancel       context.CancelFunc
+	baseTime     time.Time
 }
 
 func New(
@@ -60,6 +64,10 @@ func New(
 	workers := runtime.NumCPU()
 	batchChan := make(chan [][]any, workers*4)
 
+	ctx, cancel := context.WithCancel(ctx)
+
+	baseTime := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+
 	st := &Stream{
 		targetCols: targetCols,
 		totalCount: totalRows,
@@ -69,6 +77,8 @@ func New(
 		rules:      rules,
 		faker:      fake.New(),
 		batchChan:  batchChan,
+		cancel:     cancel,
+		baseTime:   baseTime,
 	}
 
 	go st.startWorkerPool(ctx, totalRows, batchSize, workers)
@@ -195,8 +205,7 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 			if err != nil {
 				errVal := fmt.Errorf("Failed to decode string for FK %s: %v", col.Name, err)
 				if st.err.CompareAndSwap(nil, &errVal) {
-					return ""
-					// cancel() // Signal context cancellation to stop all worker goroutines immediately
+					st.cancel()
 				}
 
 			}
@@ -219,8 +228,7 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 		return rowIndex%2 == 0
 
 	case "timestamp", "timestamptz", "date":
-		// TODO: incremental dates
-		return gofakeit.Date()
+		return st.baseTime.Add(time.Duration(rowIndex) * time.Second)
 
 	case "numeric", "decimal", "float", "real":
 		return gofakeit.Float64Range(1.00, 500.00)
@@ -229,15 +237,16 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 		return json.RawMessage(`{"generated": true}`)
 
 	case "inet":
-		return gofakeit.IPv4Address()
+		ipInt := uint32(rowIndex)
+		return net.IPv4(byte(ipInt>>24), byte(ipInt>>16), byte(ipInt>>8), byte(ipInt)).String()
+		// return gofakeit.IPv4Address()
 
 	case "bpchar", "char", "varchar":
 		if col.Type.Length != nil {
 			val, err := st.faker.LetterN(uniqueCounterKey, uint(*col.Type.Length))
 			if err != nil {
 				if st.err.CompareAndSwap(nil, &err) {
-					// cancel() // Signal context cancellation to stop all worker goroutines immediately
-					return ""
+					st.cancel()
 				}
 			}
 			return val

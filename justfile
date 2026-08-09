@@ -89,13 +89,13 @@ build-env: clean env build
 run: build-env
     ./deed seed \
         --dsn "{{DB_URL}}" \
-        --tables=delivery_proofs \
+        --tables=proof_verifications \
         --count=100000 \
         --config=tests/postgres/deed.json
 
 # Ingest one table with 20M rows
 load: build-env
-    ./deed seed \
+    time ./deed seed \
         --dsn "{{DB_URL}}" \
         --tables=audit_logs \
         --count=20000000 \

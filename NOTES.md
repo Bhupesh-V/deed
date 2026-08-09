@@ -56,3 +56,68 @@ Process:
    ```sh
    docker run --rm -u `id -u`:`id -g` -v $PWD:/data minlag/mermaid-cli -i er.mmd
    ```
+
+
+## Postgres
+
+Check all connections & their activity state
+
+```sql
+SELECT pid, state, query, wait_event_type, wait_event 
+FROM pg_stat_activity 
+WHERE backend_type = 'client backend';
+```
+
+```json
+[
+    {
+        "pid": 93,
+        "state": "idle",
+        "query": "",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 94,
+        "state": "idle",
+        "query": "",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 95,
+        "state": "idle",
+        "query": "",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 96,
+        "state": "idle",
+        "query": "",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 97,
+        "state": "active",
+        "query": "copy \"audit_logs\" ( \"action_type\", \"entity_name\", \"entity_id\", \"ip_address\", \"created_at\" ) from stdin binary;",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 98,
+        "state": "idle",
+        "query": "",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead"
+    },
+    {
+        "pid": 99,
+        "state": "active",
+        "query": "\nSELECT pid, state, query, wait_event_type, wait_event \nFROM pg_stat_activity \nWHERE backend_type = 'client backend';",
+        "wait_event_type": null,
+        "wait_event": null
+    }
+]
+```
