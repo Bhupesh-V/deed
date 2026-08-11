@@ -2,11 +2,71 @@ package calc
 
 import (
 	"math"
+	"math/bits"
 	"math/rand"
 	"testing"
 )
 
+func TestMod128(t *testing.T) {
+	tests := []struct {
+		name string
+		hi   uint64
+		lo   uint64
+		m    uint64
+		want uint64
+	}{
+		{
+			name: "zero modulo",
+			hi:   10,
+			lo:   20,
+			m:    0,
+			want: 0,
+		},
+		{
+			name: "modulo 1",
+			hi:   10,
+			lo:   20,
+			m:    1,
+			want: 0,
+		},
+		{
+			name: "hi is zero (standard uint64 modulo)",
+			hi:   0,
+			lo:   42,
+			m:    10,
+			want: 2,
+		},
+		{
+			name: "hi >= m (would overflow bits.Div64)",
+			hi:   100,
+			lo:   50,
+			m:    7,
+			want: 5, // (100 * 2^64 + 50) % 7 = 5
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Mod128(tt.hi, tt.lo, tt.m)
+			if got != tt.want {
+				t.Errorf("Mod128(%d, %d, %d) = %d; want %d", tt.hi, tt.lo, tt.m, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPermute(t *testing.T) {
+	// Helper to compute expected output at runtime without constant uint64 overflow
+	calcExpected := func(counter, maxRows int64) int64 {
+		if maxRows <= 0 {
+			return 0
+		}
+		uCounter := uint64(counter)
+		uMax := uint64(maxRows)
+		hi, lo := bits.Mul64(uCounter, LargePrime)
+		return int64(Mod128(hi, lo, uMax))
+	}
+
 	tests := []struct {
 		name     string
 		counter  int64
@@ -23,7 +83,7 @@ func TestPermute(t *testing.T) {
 			name:     "standard positive counter",
 			counter:  1,
 			maxRows:  10,
-			expected: (1 * LargePrime) % 10,
+			expected: calcExpected(1, 10),
 		},
 		{
 			name:     "counter equal to maxRows",
@@ -41,7 +101,7 @@ func TestPermute(t *testing.T) {
 			name:     "negative counter handling",
 			counter:  -5,
 			maxRows:  10,
-			expected: Permute(-5, 10), // Evaluates to 5 using two's complement unsigned math
+			expected: calcExpected(-5, 10),
 		},
 	}
 
@@ -55,7 +115,6 @@ func TestPermute(t *testing.T) {
 	}
 }
 
-// TestPermute_Properties verifies that Permute stays strictly within valid bounds [0, maxRows)
 func TestPermute_Properties(t *testing.T) {
 	maxRows := int64(100)
 
@@ -120,27 +179,26 @@ func TestGetNumericDatasetSize(t *testing.T) {
 		radix     int64
 		want      int64
 	}{
-		// Radix 2 - Binary / Integer Types
 		{
 			name:      "Radix 2: 8-bit Tinyint space",
 			precision: 8,
 			scale:     0,
 			radix:     2,
-			want:      256, // 2^8
+			want:      256,
 		},
 		{
 			name:      "Radix 2: 16-bit Smallint space",
 			precision: 16,
 			scale:     0,
 			radix:     2,
-			want:      65536, // 2^16
+			want:      65536,
 		},
 		{
 			name:      "Radix 2: 32-bit Integer space",
 			precision: 32,
 			scale:     0,
 			radix:     2,
-			want:      4294967296, // 2^32
+			want:      4294967296,
 		},
 		{
 			name:      "Radix 2: 64-bit Bigint overflow triggers MaxInt64 guard",
@@ -149,14 +207,12 @@ func TestGetNumericDatasetSize(t *testing.T) {
 			radix:     2,
 			want:      math.MaxInt64,
 		},
-
-		// Radix 10 - Decimal / Numeric Types
 		{
 			name:      "Radix 10: Precision 3, Scale 0 (Range: -999 to 999)",
 			precision: 3,
 			scale:     0,
 			radix:     10,
-			want:      1999, // (999 - (-999)) + 1
+			want:      1999,
 		},
 		{
 			name:      "Radix 10: Precision 4, Scale 2 (Range: -99.99 to 99.99 step 0.01)",
@@ -205,7 +261,7 @@ func TestHashCounter_EdgeCases(t *testing.T) {
 			counter: 5,
 			min:     10,
 			max:     5,
-			want:    10, // Returns min when max < min
+			want:    10,
 		},
 		{
 			name:    "Single Element Range (min == max)",
@@ -237,7 +293,6 @@ func TestHashCounter_EdgeCases(t *testing.T) {
 func TestHashCounter_BoundsAndDeterminism(t *testing.T) {
 	min, max := int64(-50), int64(50)
 
-	// Test bounds across random counter inputs
 	for i := 0; i < 100; i++ {
 		counter := rand.Int63n(1000) - 500
 		got := HashCounter(counter, min, max)
@@ -247,7 +302,6 @@ func TestHashCounter_BoundsAndDeterminism(t *testing.T) {
 				counter, min, max, got, min, max)
 		}
 
-		// Test determinism (same input must return identical result)
 		gotAgain := HashCounter(counter, min, max)
 		if got != gotAgain {
 			t.Errorf("HashCounter is non-deterministic: first call got %d, second call got %d",
@@ -257,8 +311,6 @@ func TestHashCounter_BoundsAndDeterminism(t *testing.T) {
 }
 
 func TestHashCounter_FullRangeUniqueness(t *testing.T) {
-	// Verify that mapping all counters in range [min, max] generates a complete
-	// set of unique output indices without duplicates.
 	ranges := []struct {
 		min int64
 		max int64

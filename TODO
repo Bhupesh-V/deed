@@ -1,0 +1,5 @@
+- [ ] Update Regex pattern generation in the same form as HashCounter.
+- [ ] Add Dynamic JSON support for `jsonb` columns.
+- [ ] Add parallel pg connections.
+- [ ] Add progress indicators per table.
+- [ ] 

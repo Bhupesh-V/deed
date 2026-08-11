@@ -5,6 +5,7 @@ DB_PASSWORD       := "my_secure_password"
 DB_NAME           := "deed-commerce"
 DB_PORT           := "5433"
 DB_VOLUME         := "deed-postgres-v1"
+PG_CONFIG_PATH    := "tests/postgres"
 MIGRATIONS_PATH   := "tests/postgres/migrations"
 DB_URL            := "postgres://" + DB_USER + ":" + DB_PASSWORD + "@127.0.0.1:" + DB_PORT + "/" + DB_NAME + "?sslmode=disable"
 COVERAGE_FILE     := "coverage.out"
@@ -46,11 +47,19 @@ db-up:
         docker start {{DB_CONTAINER_NAME}} > /dev/null; \
     else \
         docker run --name {{DB_CONTAINER_NAME}} \
+            --shm-size=2g \
             -e POSTGRES_PASSWORD={{DB_PASSWORD}} \
             -e POSTGRES_DB={{DB_NAME}} \
             -v {{DB_VOLUME}}:/var/lib/postgresql \
             -p {{DB_PORT}}:5432 \
-            -d postgres:18 > /dev/null; \
+            -d postgres:18 \
+            -c shared_buffers=2GB \
+            -c max_wal_size=16GB \
+            -c checkpoint_timeout=15min \
+            -c wal_buffers=64MB \
+            -c maintenance_work_mem=512MB \
+            -c synchronous_commit=off \
+            -c max_connections=200 > /dev/null; \
     fi
 
 # Stop and remove the database container

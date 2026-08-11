@@ -67,24 +67,31 @@ func TestLetterN(t *testing.T) {
 	}
 }
 
-// TestLetterN_OutOfBounds verifies that once a key exhausts max permutations, an error is returned
-func TestLetterN_OutOfBounds(t *testing.T) {
+func TestLetterN_WrapAround(t *testing.T) {
 	f := New()
-	key := "exhaust_key"
-	n := uint(1) // maxRows is 52
+	key := "test_key_wraparound"
+	n := uint(1) // maxRows = 52
 
-	// Consume all 52 valid permutations (counters 0 to 51)
-	for i := 0; i < 52; i++ {
-		_, err := f.LetterN(key, n)
-		if err != nil {
-			t.Fatalf("Unexpected error on call %d: %v", i, err)
+	firstVal, err := f.LetterN(key, n)
+	if err != nil {
+		t.Fatalf("unexpected error on first call: %v", err)
+	}
+
+	// Consume remaining 51 combinations
+	for i := 0; i < 51; i++ {
+		if _, err := f.LetterN(key, n); err != nil {
+			t.Fatalf("unexpected error at call %d: %v", i+2, err)
 		}
 	}
 
-	// The 53rd call (counter 52) must trigger out of bounds error
-	_, err := f.LetterN(key, n)
-	if err == nil {
-		t.Fatalf("Expected out of bounds error on 53rd call for n=1, but got nil")
+	// 53rd call: Wraps around modulo 52, returning firstVal with no error
+	wrapVal, err := f.LetterN(key, n)
+	if err != nil {
+		t.Fatalf("expected graceful wrap-around on 53rd call, got error: %v", err)
+	}
+
+	if wrapVal != firstVal {
+		t.Errorf("expected wrap-around value %q, got %q", firstVal, wrapVal)
 	}
 }
 

@@ -49,6 +49,7 @@ type Stream struct {
 	err          atomic.Pointer[error]
 	cancel       context.CancelFunc
 	baseTime     time.Time
+	colKeys      []string
 }
 
 func New(
@@ -68,6 +69,11 @@ func New(
 
 	baseTime := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 
+	colKeys := make([]string, len(targetCols))
+	for idx, col := range targetCols {
+		colKeys[idx] = fmt.Sprintf("%s:%s", entity.Name, col.Name)
+	}
+
 	st := &Stream{
 		targetCols: targetCols,
 		totalCount: totalRows,
@@ -79,6 +85,7 @@ func New(
 		batchChan:  batchChan,
 		cancel:     cancel,
 		baseTime:   baseTime,
+		colKeys:    colKeys,
 	}
 
 	go st.startWorkerPool(ctx, totalRows, batchSize, workers)
@@ -101,6 +108,15 @@ func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSiz
 
 	for range workers {
 		wg.Go(func() {
+			defer func() {
+				if r := recover(); r != nil {
+					errVal := fmt.Errorf("worker had an anxiety attack: %v", r)
+					if st.err.CompareAndSwap(nil, &errVal) {
+						st.cancel()
+					}
+				}
+			}()
+
 			for batchIdx := range workChan {
 				select {
 				case <-ctx.Done():
@@ -117,7 +133,7 @@ func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSiz
 					rowIndex := startRow + i + 1
 					row := make([]any, len(st.targetCols))
 					for cIdx, col := range st.targetCols {
-						row[cIdx] = st.generate(col, rowIndex)
+						row[cIdx] = st.generate(cIdx, col, rowIndex)
 					}
 					batch[i] = row
 				}
@@ -161,7 +177,7 @@ func (st *Stream) Err() error {
 	return nil
 }
 
-func (st *Stream) generate(col models.Column, rowIndex int64) any {
+func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 	// User Rule takes precedence
 	if rule, exists := st.rules[col.Name]; exists {
 		// TODO: fix for UNIQUE
@@ -171,7 +187,7 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 		}
 	}
 
-	uniqueCounterKey := fmt.Sprintf("%s:%s", st.entity.Name, col.Name)
+	uniqueCounterKey := st.colKeys[cIdx]
 
 	if parentTable, ok := col.FK(); ok {
 		parent := st.entities[parentTable]
@@ -179,13 +195,18 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 		actual, _ := st.uniqueCounter.LoadOrStore(uniqueCounterKey, new(atomic.Int64))
 		counter := actual.(*atomic.Int64).Add(1) - 1
 
-		var bds *models.Bound
+		var lowerId, upperId int64
 		if valBound, ok := st.bounds.Load(parentTable); ok {
-			bds = valBound.(*models.Bound)
+			bds := valBound.(*models.Bound)
+			lowerId = int64(bds.Lower)
+			upperId = int64(bds.Upper)
+		} else {
+			errVal := fmt.Errorf("error while unpacking bounds for column: %s' FK parent table %s", col.Name, parentTable)
+			if st.err.CompareAndSwap(nil, &errVal) {
+				st.cancel()
+			}
 		}
 
-		lowerId := int64(bds.Lower)
-		upperId := int64(bds.Upper)
 		parentCount := upperId - lowerId + 1
 
 		if parent.PK().IsOrdered() {
@@ -239,7 +260,6 @@ func (st *Stream) generate(col models.Column, rowIndex int64) any {
 	case "inet":
 		ipInt := uint32(rowIndex)
 		return net.IPv4(byte(ipInt>>24), byte(ipInt>>16), byte(ipInt>>8), byte(ipInt)).String()
-		// return gofakeit.IPv4Address()
 
 	case "bpchar", "char", "varchar":
 		if col.Type.Length != nil {

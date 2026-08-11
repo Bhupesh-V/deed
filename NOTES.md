@@ -60,7 +60,7 @@ Process:
 
 ## Postgres
 
-Check all connections & their activity state
+### Check all connections & their activity state
 
 ```sql
 SELECT pid, state, query, wait_event_type, wait_event 
@@ -120,4 +120,28 @@ WHERE backend_type = 'client backend';
         "wait_event": null
     }
 ]
+```
+
+### Find all non-constraint Indexes
+
+Consider dropping these indexes before ingestion
+
+```sql
+SELECT 
+    i.schemaname,
+    i.tablename,
+    i.indexname,
+    idx.indisunique,
+    CASE 
+        WHEN idx.indisprimary THEN 'Primary Key (Preserved)'
+        WHEN con.contype = 'u' THEN 'Unique Constraint (Preserved)'
+        WHEN con.contype = 'x' THEN 'Exclusion Constraint (Preserved)'
+        ELSE 'Standalone Index (Should be dropped)'
+    END AS reason_preserved
+FROM pg_indexes i
+JOIN pg_class c ON c.relname = i.indexname
+JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = i.schemaname
+JOIN pg_index idx ON idx.indexrelid = c.oid
+LEFT JOIN pg_constraint con ON con.conindid = idx.indexrelid
+WHERE i.schemaname = current_schema();
 ```

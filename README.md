@@ -115,7 +115,7 @@ Sample Output
 
 ## Performance
 
-Reference run from `just run`
+### Inserting `1M` rows in 4 tables
 
 ```
 --- Dependencies for 'proof_verifications' ---
@@ -148,4 +148,19 @@ user    2m20.426s
 sys     0m12.127s
 ```
 
-- For 3 tables with 1 million rows it took deed almost 35 seconds to complete ingestion.
+
+### Inserting `67M` rows in 1 table
+
+```
+--- Dependencies for 'audit_logs' ---
+
+🔗 audit_logs
+
+--- Starting Ingestion (1 tables) ---
+
+✅ Inserted 67000000 rows into audit_logs
+
+real    2m7.128s
+user    1m48.236s
+sys     0m5.278s
+```

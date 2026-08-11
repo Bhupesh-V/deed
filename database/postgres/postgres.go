@@ -361,54 +361,25 @@ func (p *postgres) Ingest(
 	return totalInserted, nil
 }
 
-func (p *postgres) SampleSavedIDs(
-	ctx context.Context,
-	tableName string,
-	columnName string,
-	limit int,
-) ([]any, error) {
-	// Sanitize/format identifiers carefully using pgx.Identifier to avoid SQL injection
-	query := fmt.Sprintf(
-		`SELECT %s FROM %s ORDER BY random() LIMIT $1`,
-		pgx.Identifier{columnName}.Sanitize(),
-		pgx.Identifier{tableName}.Sanitize(),
-	)
-
-	rows, err := p.pg.Query(ctx, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch random IDs from %s.%s: %w", tableName, columnName, err)
-	}
-	defer rows.Close()
-
-	var ids []any
-	for rows.Next() {
-		var id any
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan ID row: %w", err)
-		}
-		ids = append(ids, id)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during row iteration: %w", err)
-	}
-
-	return ids, nil
-}
-
 func (p *postgres) GetBounds(ctx context.Context, tableName string, colName string) (int, int, error) {
 	table := pgx.Identifier{tableName}.Sanitize()
-	col := pgx.Identifier{colName}.Sanitize()
+	// col := pgx.Identifier{colName}.Sanitize()
 
+	// query := fmt.Sprintf(`
+	// 	SELECT
+	// 		COALESCE(MIN(seq), 0),
+	// 		COALESCE(MAX(seq), 0)
+	// 	FROM (
+	// 		SELECT (row_number() OVER (ORDER BY %s)) AS seq
+	// 		FROM %s
+	// 	) sub
+	// `, col, table)
 	query := fmt.Sprintf(`
-		SELECT
-			COALESCE(MIN(seq), 0),
-			COALESCE(MAX(seq), 0)
-		FROM (
-			SELECT (row_number() OVER (ORDER BY %s)) AS seq
-			FROM %s
-		) sub
-	`, col, table)
+	    SELECT
+	        CASE WHEN COUNT(*) = 0 THEN 0 ELSE 1 END,
+	        COUNT(*)
+	    FROM %s
+	`, table)
 
 	var minVal, maxVal int
 	err := p.pg.QueryRow(ctx, query).Scan(&minVal, &maxVal)
