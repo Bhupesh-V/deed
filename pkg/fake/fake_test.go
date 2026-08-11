@@ -1,7 +1,9 @@
 package fake
 
 import (
+	"math"
 	"math/big"
+	"regexp"
 	"testing"
 )
 
@@ -189,5 +191,206 @@ func TestSeqIdxToLetterN_ZeroLengthHandling(t *testing.T) {
 
 	if len(str) != 1 {
 		t.Errorf("expected string length 1 when n=0, got length %d (str: %s)", len(str), str)
+	}
+}
+
+func TestFloat_Determinism(t *testing.T) {
+	f := &Fake{}
+	idx := int64(42)
+	precision, scale := 10, 2
+
+	// Generating twice with the same index must yield identical results
+	val1 := f.Float(idx, precision, scale)
+	val2 := f.Float(idx, precision, scale)
+
+	if val1 != val2 {
+		t.Errorf("expected deterministic results, got %f and %f", val1, val2)
+	}
+}
+
+func TestFloat_PrecisionAndScaleBounds(t *testing.T) {
+	f := &Fake{}
+
+	tests := []struct {
+		name      string
+		precision int
+		scale     int
+		maxVal    float64
+	}{
+		{
+			name:      "NUMERIC(5,2)", // 3 integer digits -> max < 1000.00
+			precision: 5,
+			scale:     2,
+			maxVal:    1000.00,
+		},
+		{
+			name:      "NUMERIC(3,1)", // 2 integer digits -> max < 100.0
+			precision: 3,
+			scale:     1,
+			maxVal:    100.0,
+		},
+		{
+			name:      "NUMERIC(6,6)", // 0 integer digits -> max < 1.0
+			precision: 6,
+			scale:     6,
+			maxVal:    1.000000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for idx := int64(0); idx < 100; idx++ {
+				val := f.Float(idx, tt.precision, tt.scale)
+
+				if val < 0 || val >= tt.maxVal {
+					t.Errorf("idx %d: value %f out of bounds for max %f", idx, val, tt.maxVal)
+				}
+			}
+		})
+	}
+}
+
+func TestFloat_ScaleZero(t *testing.T) {
+	f := &Fake{}
+
+	for idx := int64(0); idx < 20; idx++ {
+		val := f.Float(idx, 5, 0)
+
+		// Fractional part should always be 0 when scale is 0
+		if val != math.Trunc(val) {
+			t.Errorf("idx %d: expected whole number, got %f", idx, val)
+		}
+	}
+}
+
+func TestFloat_DefaultsAndEdgeCases(t *testing.T) {
+	f := &Fake{}
+
+	t.Run("Negative precision defaults to 10", func(t *testing.T) {
+		val := f.Float(1, -5, 2)
+		if val >= 100000000.0 { // precision 10, scale 2 -> integer max < 10^8
+			t.Errorf("value %f exceeded default precision limits", val)
+		}
+	})
+
+	t.Run("Negative scale defaults to 2", func(t *testing.T) {
+		val := f.Float(1, 10, -1)
+		// Check scale by verifying rounding to 2 decimal places
+		rounded := math.Round(val*100) / 100
+		if val != rounded {
+			t.Errorf("expected 2 decimal places, got %f", val)
+		}
+	})
+
+	t.Run("Precision capped at 15", func(t *testing.T) {
+		// Should not panic or overflow even with excessive precision requested
+		val := f.Float(1, 30, 2)
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			t.Errorf("got invalid float: %f", val)
+		}
+	})
+
+	t.Run("Negative row index", func(t *testing.T) {
+		val := f.Float(-10, 5, 2)
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			t.Errorf("got invalid float for negative idx: %f", val)
+		}
+	})
+}
+
+func TestRegex_ConfigPatterns(t *testing.T) {
+	tests := []struct {
+		field   string
+		pattern string
+	}{
+		// users
+		{
+			field:   "users.email",
+			pattern: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`,
+		},
+		{
+			field:   "users.username",
+			pattern: `^[a-zA-Z0-9_-]{3,30}$`,
+		},
+		{
+			field:   "users.password_hash",
+			pattern: `^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9./]{53}$`,
+		},
+
+		// orders
+		{
+			field:   "orders.order_number",
+			pattern: `^ORD-[0-9]{8}-[0-9]{4}$`,
+		},
+		{
+			field:   "orders.status",
+			pattern: `^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$`,
+		},
+		{
+			field:   "orders.total_amount",
+			pattern: `^[0-9]{1,10}\.[0-9]{2}$`,
+		},
+
+		// shipments
+		{
+			field:   "shipments.tracking_number",
+			pattern: `^[A-Z0-9]{8,100}$`,
+		},
+
+		// shipment_tracking_events
+		{
+			field:   "shipment_tracking_events.location",
+			pattern: `^[A-Za-z\s.-]+,\s*[A-Z]{2}(\s*[0-9]{5})?$`,
+		},
+		{
+			field:   "shipment_tracking_events.status_description",
+			pattern: `^[A-Za-z0-9\s.,-]{1,255}$`,
+		},
+
+		// delivery_proofs
+		{
+			field:   "delivery_proofs.recipient_signature_url",
+			pattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|svg)$`,
+		},
+		{
+			field:   "delivery_proofs.photo_url",
+			pattern: `^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(/.*)?\.(png|jpg|jpeg|webp)$`,
+		},
+
+		// proof_verifications
+		{
+			field:   "proof_verifications.confidence_score",
+			pattern: `^(100\.00|[0-9]{1,2}\.[0-9]{2})$`,
+		},
+	}
+
+	f := &Fake{}
+
+	for _, tt := range tests {
+		t.Run(tt.field, func(t *testing.T) {
+			// Compile pattern to validate against generated strings
+			re, err := regexp.Compile(tt.pattern)
+			if err != nil {
+				t.Fatalf("invalid regex pattern in test case: %v", err)
+			}
+
+			for idx := int64(0); idx < 50; idx++ {
+				val, err := f.Regex(idx, tt.pattern)
+				if err != nil {
+					t.Fatalf("idx %d: unexpected error generating string: %v", idx, err)
+				}
+
+				// 1. Verify generated string matches pattern
+				if !re.MatchString(val) {
+					t.Errorf("idx %d: generated %q does not match pattern %q", idx, val, tt.pattern)
+				}
+
+				// 2. Verify determinism
+				valRepeat, _ := f.Regex(idx, tt.pattern)
+				if val != valRepeat {
+					t.Errorf("idx %d: expected deterministic output, got %q and %q", idx, val, valRepeat)
+				}
+			}
+		})
 	}
 }

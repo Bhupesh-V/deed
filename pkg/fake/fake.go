@@ -3,8 +3,12 @@ package fake
 import (
 	"deed/pkg/calc"
 	"fmt"
+	"math"
 	"math/big"
 	"math/bits"
+	"math/rand"
+	"regexp/syntax"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -97,4 +101,139 @@ func (f *Fake) generateLetterN(idx int64, n uint) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// Float generates a deterministic float64 based on row index, precision, and scale.
+// Example: precision=5, scale=2 produces numbers up to 999.99 (3 int digits, 2 frac digits).
+func (f *Fake) Float(idx int64, precision, scale int) float64 {
+	if precision <= 0 {
+		precision = 10
+	}
+	if scale < 0 {
+		scale = 2
+	}
+
+	if precision > 15 {
+		precision = 15
+	}
+	if scale > precision {
+		scale = precision
+	}
+
+	integerDigits := precision - scale
+
+	// Max value for the integer component as int64 (e.g., 3 digits -> 999)
+	maxIntPart := int64(math.Pow10(integerDigits)) - 1
+	if maxIntPart <= 0 {
+		maxIntPart = 1
+	}
+
+	// Generate integer component
+	intPart := calc.Permute(idx, maxIntPart)
+
+	// Generate fractional component using offset (e.g., +67)
+	var fracPart int64
+	scaleFactor := math.Pow10(scale)
+	if scale > 0 {
+		maxFracPart := int64(scaleFactor)
+		// hehe ⁶🤷‍♂️⁷
+		fracPart = calc.Permute(idx+67, maxFracPart)
+	}
+
+	// Assemble and round to requested scale
+	rawVal := float64(intPart) + (float64(fracPart) / scaleFactor)
+	return math.Round(rawVal*scaleFactor) / scaleFactor
+}
+
+// Regex generates a deterministic string matching a regex pattern using standard library AST parsing.
+func (f *Fake) Regex(idx int64, pattern string) (string, error) {
+	re, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a standard deterministic generator seeded by row index
+	rng := rand.New(rand.NewSource(idx))
+
+	var sb strings.Builder
+	f.buildRegexString(&sb, re, rng)
+	return sb.String(), nil
+}
+
+// Default bounds for regex generation to keep synthetic data within practical database limits.
+const (
+	maxStarRepetitions     = 4 // OpStar (*): 0 to 3 repetitions (rng.Intn(4))
+	maxPlusExtraCount      = 3 // OpPlus (+): 1 to 3 repetitions (1 + rng.Intn(3))
+	maxUnboundedRepeatCap  = 3 // OpRepeat ({n,}): caps unbounded repeats to min + 3
+	repeatThresholdGap     = 5 // Threshold to detect unbounded or excessively large repeat ranges ({n, m})
+	defaultAnyCharAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.,!@#"
+)
+
+func (f *Fake) buildRegexString(sb *strings.Builder, re *syntax.Regexp, rng *rand.Rand) {
+	switch re.Op {
+	case syntax.OpLiteral:
+		sb.WriteString(string(re.Rune))
+
+	case syntax.OpConcat:
+		for _, sub := range re.Sub {
+			f.buildRegexString(sb, sub, rng)
+		}
+
+	case syntax.OpAlternate:
+		if len(re.Sub) > 0 {
+			choice := rng.Intn(len(re.Sub))
+			f.buildRegexString(sb, re.Sub[choice], rng)
+		}
+
+	case syntax.OpCharClass:
+		var totalRunes int
+		for i := 0; i < len(re.Rune); i += 2 {
+			totalRunes += int(re.Rune[i+1] - re.Rune[i] + 1)
+		}
+		if totalRunes > 0 {
+			pick := rng.Intn(totalRunes)
+			for i := 0; i < len(re.Rune); i += 2 {
+				count := int(re.Rune[i+1] - re.Rune[i] + 1)
+				if pick < count {
+					sb.WriteRune(re.Rune[i] + rune(pick))
+					break
+				}
+				pick -= count
+			}
+		}
+
+	case syntax.OpStar:
+		count := rng.Intn(maxStarRepetitions)
+		for range count {
+			f.buildRegexString(sb, re.Sub[0], rng)
+		}
+
+	case syntax.OpPlus:
+		count := 1 + rng.Intn(maxPlusExtraCount)
+		for range count {
+			f.buildRegexString(sb, re.Sub[0], rng)
+		}
+
+	case syntax.OpQuest:
+		if rng.Intn(2) == 1 {
+			f.buildRegexString(sb, re.Sub[0], rng)
+		}
+
+	case syntax.OpRepeat:
+		minR, maxR := re.Min, re.Max
+		if maxR < 0 || maxR > minR+repeatThresholdGap {
+			maxR = minR + maxUnboundedRepeatCap
+		}
+		diff := maxR - minR + 1
+		count := minR + rng.Intn(diff)
+		for range count {
+			f.buildRegexString(sb, re.Sub[0], rng)
+		}
+
+	case syntax.OpCapture:
+		f.buildRegexString(sb, re.Sub[0], rng)
+
+	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
+		sb.WriteByte(defaultAnyCharAlphabet[rng.Intn(len(defaultAnyCharAlphabet))])
+	}
 }

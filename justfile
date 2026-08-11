@@ -107,7 +107,7 @@ load: build-env
     time ./deed seed \
         --dsn "{{DB_URL}}" \
         --tables=audit_logs \
-        --count=20000000 \
+        --count=67000000 \
         --config=tests/postgres/deed.json
 
 # Run unit-tests suite

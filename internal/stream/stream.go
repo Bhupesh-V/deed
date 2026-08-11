@@ -15,8 +15,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/brianvoe/gofakeit/v6"
 )
 
 // RowStream is an abstract stream of generated mock data rows used by postgres copy from
@@ -180,10 +178,15 @@ func (st *Stream) Err() error {
 func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 	// User Rule takes precedence
 	if rule, exists := st.rules[col.Name]; exists {
-		// TODO: fix for UNIQUE
 		if rule.Type == "regex" {
-			pattern := rule.RegexPattern
-			return gofakeit.Regex(pattern)
+			val, err := st.faker.Regex(rowIndex, rule.RegexPattern)
+			if err != nil {
+				errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
+				if st.err.CompareAndSwap(nil, &errVal) {
+					st.cancel()
+				}
+			}
+			return val
 		}
 	}
 
@@ -252,7 +255,9 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		return st.baseTime.Add(time.Duration(rowIndex) * time.Second)
 
 	case "numeric", "decimal", "float", "real":
-		return gofakeit.Float64Range(1.00, 500.00)
+		if col.Type.Precision != nil && col.Type.Scale != nil {
+			return st.faker.Float(rowIndex, *col.Type.Precision, *col.Type.Scale)
+		}
 
 	case "jsonb":
 		return json.RawMessage(`{"generated": true}`)

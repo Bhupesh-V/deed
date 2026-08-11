@@ -115,6 +115,14 @@ Sample Output
 
 ## Performance
 
+Performance for deed depends on following factors.
+
+1. No.of dependent tables in the schema. 
+2. Variation of column data types.
+3. No.of columns
+
+Having said that here are some reference runs:
+
 ### Inserting `1M` rows in 4 tables
 
 ```
@@ -149,6 +157,22 @@ sys     0m12.127s
 ```
 
 
+### Inserting `20M` rows in 1 table
+
+```
+--- Dependencies for 'audit_logs' ---
+
+🔗 audit_logs
+
+--- Starting Ingestion (1 tables) ---
+
+✅ Inserted 20000000 rows into audit_logs
+
+real    0m33.542s
+user    0m29.421s
+sys     0m1.465s
+```
+
 ### Inserting `67M` rows in 1 table
 
 ```
@@ -160,7 +184,7 @@ sys     0m12.127s
 
 ✅ Inserted 67000000 rows into audit_logs
 
-real    2m7.128s
-user    1m48.236s
-sys     0m5.278s
+real    2m0.645s
+user    1m40.859s
+sys     0m4.647s
 ```

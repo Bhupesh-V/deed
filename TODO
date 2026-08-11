@@ -2,4 +2,4 @@
 - [ ] Add Dynamic JSON support for `jsonb` columns.
 - [ ] Add parallel pg connections.
 - [ ] Add progress indicators per table.
-- [ ] 
+- [ ] Add `enum` data type support.
