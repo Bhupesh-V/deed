@@ -22,20 +22,37 @@ TODO
 
 ## Databases Coverage
 
-### Postgres
-
-<!-- 
-| Constraint Type | Description | Common SQL Syntax Example | Tool Coverage |
-| :--- | :--- | :--- | :---: |
-| **Primary Key** | Uniquely identifies each row in a table. Implicitly enforces `NOT NULL` and `UNIQUE`. | `PRIMARY KEY (id)` | [x] Supported |
-| **Foreign Key** | Links data in one table to a primary/unique key in another, maintaining relationship consistency. | `FOREIGN KEY (user_id) REFERENCES users(id)` | [x] Supported |
-| **Unique** | Ensures all values in a column or set of columns are distinct (typically allows `NULL`s depending on SQL engine). | `UNIQUE (email)` | [x] Supported |
-| **Not Null** | Prevents `NULL` (missing) values from being stored in a column. | `email VARCHAR(255) NOT NULL` | [ ] Supported |
-| **Check** | Evaluates a Boolean expression against inserted or updated row data. | `CHECK (age >= 18)` | [ ] Supported |
-| **Default** | Automatically assigns a preset value if no explicit value is supplied during `INSERT`. | `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | [ ] Supported |
-| **Exclusion Constraint** | Guarantees that if two rows are compared on specified columns using specific operators, at least one returns false (e.g., preventing overlapping time intervals in PostgreSQL). | `EXCLUDE USING gist (room_id WITH =, reservation_period WITH &&)` | [ ] Supported |
-| **Domain Constraint** | Restricts data values to a named domain with custom constraints/types. | `CREATE DOMAIN pos_int AS INT CHECK (VALUE > 0);` | [ ] Supported | -->
-
+<table>
+  <thead>
+    <tr>
+      <th>Database</th>
+      <th>Coverage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="2"><b>Postgres</b></td>
+      <td>
+        <b>Constraints:</b><br>
+        ✅ UNIQUE<br>
+        ✅ FK<br>
+        ⏹️ CHECK<br>
+        ⏹️ EXCLUSION
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>Column Types:</b><br>
+        ✅ Numeral (int and associated types)<br>
+        ✅ Character (varchar, char, text, bpchar)<br>
+        ⏹️ JSONB<br>
+        ⏹️ ENUM<br>
+        ⏹️ Time<br>
+        ⏹️ Arrays
+      </td>
+    </tr>
+  </tbody>
+</table>
 ## Usage
 
 ### Ideal Workflow
@@ -115,15 +132,16 @@ Sample Output
 
 ## Performance
 
-Performance for deed depends on following factors.
+Ingestion speed for deed depends on following factors.
 
 1. No.of dependent tables in the schema. 
 2. Variation of column data types.
-3. No.of columns
+3. No.of columns.
+4. Database host resources.
 
 Having said that here are some reference runs:
 
-### Inserting `1M` rows in 4 tables
+### Inserting `1M` rows across 4 tables
 
 ```
 --- Dependencies for 'proof_verifications' ---
@@ -151,9 +169,9 @@ Having said that here are some reference runs:
 ✅ Inserted 1000000 rows into delivery_proofs
 ✅ Inserted 100 rows into proof_verifications
 
-real    0m35.714s
-user    2m20.426s
-sys     0m12.127s
+real    0m16.064s
+user    0m42.597s
+sys     0m1.887s
 ```
 
 
@@ -168,9 +186,9 @@ sys     0m12.127s
 
 ✅ Inserted 20000000 rows into audit_logs
 
-real    0m33.542s
-user    0m29.421s
-sys     0m1.465s
+real    0m40.765s
+user    0m30.115s
+sys     0m1.537s
 ```
 
 ### Inserting `67M` rows in 1 table
@@ -184,7 +202,7 @@ sys     0m1.465s
 
 ✅ Inserted 67000000 rows into audit_logs
 
-real    2m0.645s
-user    1m40.859s
-sys     0m4.647s
+real    2m13.385s
+user    1m43.081s
+sys     0m5.010s
 ```
