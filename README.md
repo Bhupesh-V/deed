@@ -20,39 +20,26 @@
 
 TODO
 
-## Databases Coverage
+## Database Coverage
 
-<table>
-  <thead>
-    <tr>
-      <th>Database</th>
-      <th>Coverage</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td rowspan="2"><b>Postgres</b></td>
-      <td>
-        <b>Constraints:</b><br>
-        ✅ UNIQUE<br>
-        ✅ FK<br>
-        ⏹️ CHECK<br>
-        ⏹️ EXCLUSION
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <b>Column Types:</b><br>
-        ✅ Numeral (int and associated types)<br>
-        ✅ Character (varchar, char, text, bpchar)<br>
-        ⏹️ JSONB<br>
-        ⏹️ ENUM<br>
-        ⏹️ Time<br>
-        ⏹️ Arrays
-      </td>
-    </tr>
-  </tbody>
-</table>
+### Postgres
+
+* **Column Types:**
+  * [x] Numeric *(int and associated types)*
+  * [x] Character *(varchar, char, text, bpchar)*
+  * [ ] JSONB
+  * [ ] ENUM
+  * [x] Time
+  * [ ] Arrays
+* **Constraints:**
+  * [x] UNIQUE
+  * [ ] Foreign Key
+    * [x] Simple
+    * [ ] Composite
+    * [ ] Self-Referencing
+  * [ ] CHECK
+  * [ ] EXCLUSION
+
 ## Usage
 
 ### Ideal Workflow
@@ -73,7 +60,7 @@ Deed can definitely be used to fill up your schema with test data and by extensi
 
 deed works well if you already have a config setup as per your use-case. Create a `deed.json` file wherever you plan to invoke the deed CLI with the following content.
 
-```json
+```jsonl
 {
     "version": "1",
     "database": {
@@ -123,11 +110,6 @@ deed seed \
  --tables=app,users \
  --count=1000000 \
  --config=deed.json
-```
-
-Sample Output
-
-```
 ```
 
 ## Performance
