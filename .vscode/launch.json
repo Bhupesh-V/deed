@@ -5,15 +5,15 @@
       "name": "Debug Deed",
       "type": "go",
       "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/main.go",
+      "mode": "exec",
+      "program": "${workspaceFolder}/deed",
       "preLaunchTask": "Build Deed",
       "args": [
         "seed",
         "--dsn",
         "postgres://postgres:my_secure_password@127.0.0.1:5433/postgres",
-        "--tables=delivery_proofs",
-        "--count=1000000",
+        "--tables=system_event_logs",
+        "--count=100000",
         "--config=tests/postgres/deed.json"
       ]
     }

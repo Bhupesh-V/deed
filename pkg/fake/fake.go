@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"deed/internal/models"
 	"deed/pkg/calc"
 	"fmt"
 	"math"
@@ -137,7 +138,7 @@ func (f *Fake) Float(idx int64, precision, scale int) float64 {
 	if scale > 0 {
 		maxFracPart := int64(scaleFactor)
 		// hehe ⁶🤷‍♂️⁷
-		fracPart = calc.Permute(idx+67, maxFracPart)
+		fracPart = calc.Permute(idx+int64(models.SixSeven), maxFracPart)
 	}
 
 	// Assemble and round to requested scale

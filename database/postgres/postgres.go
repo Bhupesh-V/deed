@@ -50,6 +50,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 		c.column_default,
 		c.data_type,
 		c.udt_name,
+		COALESCE(enums.enum_values, ARRAY[]::TEXT[]) AS enum_values,
 		c.is_nullable,
 		c.is_identity,
 		c.identity_generation,
@@ -62,13 +63,31 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 		c.dtd_identifier,
 		c.generation_expression,
 		c.maximum_cardinality,
-		t.hasindexes,
-		t.hastriggers,
+		COALESCE(t.hasindexes, FALSE) AS hasindexes,
+		COALESCE(t.hastriggers, FALSE) AS hastriggers,
 		COALESCE(cons.constraints, '[]'::jsonb) AS column_constraints
 	FROM
 		information_schema.columns AS c
 		LEFT JOIN pg_catalog.pg_tables AS t ON c.table_name = t.tablename
 		AND c.table_schema = t.schemaname
+		LEFT JOIN (
+			SELECT
+				t.typname,
+				n.nspname AS schema_name,
+				array_agg(
+					e.enumlabel
+					ORDER BY
+						e.enumsortorder
+				) AS enum_values
+			FROM
+				pg_catalog.pg_type t
+				JOIN pg_catalog.pg_enum e ON t.oid = e.enumtypid
+				JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+			GROUP BY
+				t.typname,
+				n.nspname
+		) AS enums ON c.udt_schema = enums.schema_name
+		AND c.udt_name = enums.typname
 		LEFT JOIN (
 			SELECT
 				tc.table_schema,
@@ -91,13 +110,10 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				) AS constraints
 			FROM
 				information_schema.table_constraints AS tc
-				-- Joins all constraint types to their columns (including CHECK)
 				JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name
 				AND tc.table_schema = ccu.constraint_schema
-				-- Fetches the actual check expression for CHECK constraints
 				LEFT JOIN information_schema.check_constraints AS ch ON tc.constraint_name = ch.constraint_name
 				AND tc.table_schema = ch.constraint_schema
-				-- Handles foreign key reference metadata
 				LEFT JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name
 				AND tc.table_schema = rc.constraint_schema
 				LEFT JOIN information_schema.constraint_column_usage AS ref_ccu ON rc.unique_constraint_name = ref_ccu.constraint_name
@@ -124,7 +140,6 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 
 	rows, err := p.pg.Query(ctx, query, "public")
 	if err != nil {
-		log.Fatalf("Query failed: %v\n", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -166,6 +181,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 			IsPrimaryKey:           r.IsPrimaryKey,
 			DataType:               r.DataType,
 			UdtName:                r.UdtName,
+			EnumValues:             r.EnumValues,
 			IsNullable:             r.IsNullable,
 			IsIdentity:             r.IsIdentity,
 			IdentityGeneration:     r.IdentityGeneration,
@@ -217,6 +233,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				Name: c.Name,
 				Type: models.DataType{
 					BaseType:  c.UdtName,
+					DBType:    c.DataType,
 					Length:    c.CharacterMaximumLength,
 					Precision: c.NumericPrecision,
 					Scale:     c.NumericPrecisionScale,
@@ -227,6 +244,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 				IsPrimaryKey: c.IsPrimaryKey,
 				Default:      c.Default,
 				HasIdentity:  hasIdentity,
+				EnumValues:   c.EnumValues,
 			})
 		}
 

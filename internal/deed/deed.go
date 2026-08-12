@@ -77,9 +77,10 @@ func newSpeedDecorator() decor.Decorator {
 
 func (d *Deed) Start(ctx context.Context) error {
 	entities, err := d.db.GetEntities(ctx)
-	if err != nil {
-		return err
+	if err != nil || entities == nil {
+		return fmt.Errorf("unable to fetch db schema: %w", err)
 	}
+
 	allEntities := make(map[string]*models.Entity)
 	for _, t := range entities {
 		allEntities[t.Name] = &t

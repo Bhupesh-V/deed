@@ -15,6 +15,7 @@ type Column struct {
 	IsPrimaryKey           bool
 	DataType               string
 	UdtName                string
+	EnumValues             []string
 	IsNullable             string
 	IsIdentity             string
 	IdentityGeneration     *string
@@ -48,6 +49,7 @@ type FlatRow struct {
 	ColumnDefault          *string
 	DataType               string
 	UdtName                string
+	EnumValues             []string
 	IsNullable             string
 	IsIdentity             string
 	IdentityGeneration     *string

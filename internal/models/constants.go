@@ -14,3 +14,7 @@ const (
 func (c ConstraintType) String() string {
 	return string(c)
 }
+
+const (
+	SixSeven int = 67
+)

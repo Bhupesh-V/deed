@@ -21,13 +21,15 @@ type Column struct {
 	Default      *string
 	HasIdentity  bool
 	IsPrimaryKey bool
+	EnumValues   []string
 }
 
 // DataType captures the full PostgreSQL type signature.
 type DataType struct {
 	BaseType  string // e.g., "VARCHAR", "NUMERIC", "INT"
-	Precision *int   // e.g., 10 for NUMERIC(10,2) or 255 for VARCHAR(255)
-	Scale     *int   // e.g., 2 for NUMERIC(10,2)
+	DBType    string
+	Precision *int // e.g., 10 for NUMERIC(10,2) or 255 for VARCHAR(255)
+	Scale     *int // e.g., 2 for NUMERIC(10,2)
 	Radix     *int
 	Length    *int32
 }

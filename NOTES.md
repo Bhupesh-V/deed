@@ -145,3 +145,10 @@ JOIN pg_index idx ON idx.indexrelid = c.oid
 LEFT JOIN pg_constraint con ON con.conindid = idx.indexrelid
 WHERE i.schemaname = current_schema();
 ```
+
+
+deed config init --f file.json
+- initialise the deed config, talk to the database, create the structure, add any sensible defaults.
+
+deed config clean --f file.json
+- remove properties with no values. Useful for making the config easier to digest and share.

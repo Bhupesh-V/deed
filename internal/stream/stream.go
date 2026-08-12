@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"net"
 	"runtime"
 	"strings"
@@ -266,7 +267,7 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		ipInt := uint32(rowIndex)
 		return net.IPv4(byte(ipInt>>24), byte(ipInt>>16), byte(ipInt>>8), byte(ipInt)).String()
 
-	case "bpchar", "char", "varchar":
+	case "bpchar", "char", "varchar", "text":
 		if col.Type.Length != nil {
 			val, err := st.faker.LetterN(uniqueCounterKey, uint(*col.Type.Length))
 			if err != nil {
@@ -275,6 +276,46 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 				}
 			}
 			return val
+		} else {
+			val, err := st.faker.LetterN(uniqueCounterKey, uint(models.SixSeven))
+			if err != nil {
+				if st.err.CompareAndSwap(nil, &err) {
+					st.cancel()
+				}
+			}
+			return val
+		}
+
+	case "_bpchar", "_char", "_varchar", "_text":
+		var chArray []string
+		howBig := 6
+		howLong := 7
+		for range howLong {
+			val, err := st.faker.LetterN(uniqueCounterKey, uint(howBig))
+			if err != nil {
+				if st.err.CompareAndSwap(nil, &err) {
+					st.cancel()
+				}
+			}
+			chArray = append(chArray, val)
+		}
+		return chArray
+
+	case "_int", "_int8", "_int4":
+		howLong := 5
+
+		randomArray := make([]int, howLong)
+		for i := range howLong {
+			randomArray[i] = rand.Intn(100)
+		}
+		return randomArray
+
+	default:
+		// handle enums
+		if col.Type.DBType == "USER-DEFINED" {
+			if len(col.EnumValues) > 0 {
+				return col.EnumValues[rand.Intn(len(col.EnumValues))]
+			}
 		}
 	}
 
