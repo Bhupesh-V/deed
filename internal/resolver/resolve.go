@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"deed/internal/models"
+	"deed/internal/styles"
 	"fmt"
 	"sort"
 
@@ -235,11 +236,8 @@ func (r *Resolver) GetDependencyTreeUI(tableName string, tables map[string]*mode
 		r.Dependencies[tableName] = make(map[string]struct{})
 	}
 
-	// Define node styling
-	nodeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3dd3ab")).Bold(false)
-
 	// Create the root node for this sub-tree
-	t := tree.New().Root(nodeStyle.Render("🔗 " + tableName))
+	t := tree.New().Root(styles.Node.Render("🔗 " + tableName))
 
 	// Stop recursion if already visited on this branch to avoid infinite cycles
 	if visited[tableName] {

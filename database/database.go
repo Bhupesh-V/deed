@@ -13,6 +13,7 @@ type Database interface {
 		entity string,
 		columns []string,
 		stream stream.RowStream,
+		onProgress func(n int),
 	) (int64, error)
 	// For a table with ordered column values return the MIN and MAX
 	GetBounds(ctx context.Context, tableName string, colName string) (int, int, error)

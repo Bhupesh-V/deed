@@ -6,12 +6,12 @@ import (
 	"deed/internal/config"
 	"deed/internal/deed"
 	"deed/internal/models"
+	"deed/internal/styles"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
@@ -25,47 +25,15 @@ var (
 
 // TODO: fix for longer table list
 func renderBanner(dbURL, configUrl string, tables []string, count int64) {
-	// Colors
-	primary := lipgloss.Color("42") // Spring green
-	// muted := lipgloss.Color("241")    // Cool gray
-	accent := lipgloss.Color("212")   // Soft pink
-	highlight := lipgloss.Color("86") // Cyan
-
-	// Styles
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(primary).
-		MarginBottom(1)
-
-	labelStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(accent).
-		Width(10)
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("255"))
-
-	badgeStyle := lipgloss.NewStyle().
-		Foreground(highlight).
-		Background(lipgloss.Color("236")).
-		Padding(0, 1).
-		Bold(true)
-
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primary).
-		Padding(1, 2).
-		Margin(1, 0)
-
 	// Format table list as clean badges
 	var tableBadges []string
 	for _, t := range tables {
-		tableBadges = append(tableBadges, badgeStyle.Render(t))
+		tableBadges = append(tableBadges, styles.Badge.Render(t))
 	}
 	tablesFormatted := strings.Join(tableBadges, " ")
 
 	// Content assembly
-	title := titleStyle.Render("🌱 deed seed")
+	title := styles.Title.Render("🌱 deed seed")
 
 	value, prefix := humanize.ComputeSI(float64(count))
 
@@ -76,14 +44,14 @@ func renderBanner(dbURL, configUrl string, tables []string, count int64) {
 			"%s %s\n"+
 			"%s %s",
 		title,
-		labelStyle.Render("DSN"), valueStyle.Render(dbURL),
-		labelStyle.Render("Config"), valueStyle.Render(configUrl),
-		labelStyle.Render("Count"), valueStyle.Render(fmt.Sprintf("%s (%.2f%s)", humanize.Comma(int64(count)), value, prefix)),
-		labelStyle.Render("Tables"), tablesFormatted,
+		styles.Label.Render("DSN"), styles.Value.Render(dbURL),
+		styles.Label.Render("Config"), styles.Value.Render(configUrl),
+		styles.Label.Render("Count"), styles.Value.Render(fmt.Sprintf("%s (%.2f%s)", humanize.Comma(int64(count)), value, prefix)),
+		styles.Label.Render("Tables"), tablesFormatted,
 	)
 
 	// Render framed card
-	fmt.Println(boxStyle.Render(content))
+	fmt.Println(styles.Box.Render(content))
 }
 
 var seedCmd = &cobra.Command{

@@ -150,3 +150,14 @@ func (f *Feeder) Prepare(
 
 	return colNames, st, nil
 }
+
+func (f *Feeder) GetTableCount(table string) int64 {
+	entity, ok := f.entities[table]
+	if !ok {
+		return f.input.Count
+	}
+	if tableCfg, ok := f.config.Rules.Rules.Tables[entity.Name]; ok && tableCfg.Count > 0 {
+		return tableCfg.Count
+	}
+	return f.input.Count
+}

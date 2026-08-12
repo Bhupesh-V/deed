@@ -330,6 +330,7 @@ func (p *postgres) Ingest(
 	entity string,
 	columns []string,
 	stream stream.RowStream,
+	onProgress func(n int),
 ) (int64, error) {
 	const chunkSize = 500000 // 500k rows per transaction batch
 	var totalInserted int64
@@ -338,7 +339,7 @@ func (p *postgres) Ingest(
 			return totalInserted, err
 		}
 
-		adapter := newChunkAdapter(stream, chunkSize)
+		adapter := newChunkAdapter(stream, chunkSize, onProgress)
 
 		insertedRows, err := p.pg.CopyFrom(
 			ctx,
@@ -392,39 +393,51 @@ func (p *postgres) GetBounds(ctx context.Context, tableName string, colName stri
 
 // chunkAdapter wraps your RowStream and limits execution to chunkSize rows per COPY pass.
 type chunkAdapter struct {
-	stream    stream.RowStream
-	limit     int
-	count     int
-	exhausted bool // true when the underlying stream naturally completes
+	stream     stream.RowStream
+	limit      int
+	count      int
+	exhausted  bool // true when the underlying stream naturally completes
+	onProgress func(n int)
+	unreported int
 }
 
-func newChunkAdapter(s stream.RowStream, chunkSize int) *chunkAdapter {
+func newChunkAdapter(s stream.RowStream, chunkSize int, onProgress func(n int)) *chunkAdapter {
 	return &chunkAdapter{
-		stream: s,
-		limit:  chunkSize,
+		stream:     s,
+		limit:      chunkSize,
+		onProgress: onProgress,
 	}
 }
 
 func (a *chunkAdapter) Next() bool {
-	// Reached max rows for this chunk; pause execution to let pgx commit
 	if a.count >= a.limit {
+		a.flushProgress()
 		return false
 	}
 
-	// Advance underlying stream
 	if !a.stream.Next() {
 		a.exhausted = true
+		a.flushProgress()
 		return false
 	}
 
 	a.count++
+	a.unreported++
+
+	// Flush progress every 100 rows to ensure immediate updates for small counts
+	if a.unreported >= 100 {
+		a.flushProgress()
+	}
+
 	return true
 }
 
-func (a *chunkAdapter) Values() ([]any, error) {
-	return a.stream.Values()
+func (a *chunkAdapter) flushProgress() {
+	if a.unreported > 0 && a.onProgress != nil {
+		a.onProgress(a.unreported)
+		a.unreported = 0
+	}
 }
 
-func (a *chunkAdapter) Err() error {
-	return a.stream.Err()
-}
+func (a *chunkAdapter) Values() ([]any, error) { return a.stream.Values() }
+func (a *chunkAdapter) Err() error             { return a.stream.Err() }

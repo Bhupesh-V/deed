@@ -96,7 +96,7 @@ build-env: clean env build
 
 # Ingest 4 tables with 1 million rows (use this for basic sanity)
 run: build-env
-    time ./deed seed \
+    ./deed seed \
         --dsn "{{DB_URL}}" \
         --tables=proof_verifications \
         --count=1000000 \
@@ -104,7 +104,7 @@ run: build-env
 
 # Ingest one table with 20M rows
 load: build-env
-    time ./deed seed \
+    ./deed seed \
         --dsn "{{DB_URL}}" \
         --tables=audit_logs \
         --count=20000000 \
