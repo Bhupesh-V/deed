@@ -105,14 +105,6 @@ func (e *Entity) DirectDependencies() []string {
 	return deps
 }
 
-// GenerationRule defines how a specific column generates fake data.
-type GenerationRule struct {
-	Type         string // "regex", "random_string", "random_int", "email", "foreign_key", "custom"
-	Min          int
-	Max          int
-	RegexPattern string
-}
-
 type Bound struct {
 	Lower int
 	Upper int

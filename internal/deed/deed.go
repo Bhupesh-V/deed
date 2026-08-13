@@ -91,7 +91,7 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	// Build tree UI & populate dependencies
 	for _, target := range lookUps {
-		fmt.Println(styles.Title.Render(fmt.Sprintf("\nDependencies for '%s'\n", target)))
+		fmt.Println(styles.Title.Render(fmt.Sprintf("\nDependencies for '%s'", target)))
 		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
 	}
 
@@ -114,10 +114,10 @@ func (d *Deed) Start(ctx context.Context) error {
 	progressContainer := mpb.NewWithContext(ctx)
 	bars := make(map[string]*mpb.Bar, len(tablesToIngest))
 
-	fmt.Println(styles.Title.Render(fmt.Sprintf("\nSeeding Data (%d tables)\n", len(tablesToIngest))))
+	fmt.Println(styles.Title.Render(fmt.Sprintf("\nSeeding Data (%d tables)", len(tablesToIngest))))
 
 	for i, table := range tablesToIngest {
-		totalRows := f.GetTableCount(table)
+		totalRows := f.GetRowCount(table)
 
 		bar, _ := progressContainer.Add(
 			totalRows,
@@ -151,7 +151,11 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	for _, table := range tablesToIngest {
 		g.Go(func() error {
-			entity := allEntities[table]
+			entity, ok := allEntities[table]
+			if !ok || entity == nil {
+				return fmt.Errorf("table metadata not found in database schema for: %q", table)
+			}
+
 			bar := bars[table]
 
 			// Wait for direct dependencies
@@ -165,7 +169,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				}
 			}
 
-			colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds)
+			colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds, d.config)
 			if err != nil {
 				return fmt.Errorf("prepare failed for %s: %w", table, err)
 			}

@@ -98,7 +98,7 @@ build-env: clean env build
 run: build-env
     ./deed seed \
         --dsn "{{DB_URL}}" \
-        --tables=proof_verifications \
+        --tables=proof_verifications,system_event_logs \
         --count=1000000 \
         --config=tests/postgres/deed.json
 
@@ -106,8 +106,8 @@ run: build-env
 load: build-env
     ./deed seed \
         --dsn "{{DB_URL}}" \
-        --tables=audit_logs \
-        --count=20000000 \
+        --tables=warehouse_shelf_grid \
+        --count=67000000 \
         --config=tests/postgres/deed.json
 
 # Run unit-tests suite

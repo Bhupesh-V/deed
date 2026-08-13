@@ -292,7 +292,7 @@ func (r *Resolver) GetRequiredTables(lookups []string, allTables map[string]*mod
 	lookupSet := make(map[string]struct{})
 
 	if len(lookups) > 0 {
-		// Pull all recursive ancestors using your existing helper
+		// Pull all recursive ancestors
 		deps := r.GetDependenciesForTables(lookups)
 		for dep := range deps {
 			lookupSet[dep] = struct{}{}

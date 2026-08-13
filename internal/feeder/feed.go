@@ -101,30 +101,21 @@ func (f *Feeder) Prepare(
 	count int64,
 	entities map[string]*models.Entity,
 	bounds *sync.Map,
+	config *config.Config,
 ) ([]string, stream.RowStream, error) {
 
 	var targetCols []models.Column
 	var colNames []string
 	var totalRows int64 = count
 
-	rules := make(map[string]models.GenerationRule)
-	countsPerTable := make(map[string]int64)
-
 	entity := entities[table]
+	if entity == nil {
+		return nil, nil, fmt.Errorf("unable to find entity")
+	}
 
-	if tableCfg, ok := f.config.Rules.Rules.Tables[entity.Name]; ok {
-		if tableCfg.Count > 0 {
-			totalRows = tableCfg.Count
-		}
-
-		countsPerTable[entity.Name] = int64(totalRows)
-
-		for colName, colRule := range tableCfg.Columns {
-			rules[colName] = models.GenerationRule{
-				Type:         colRule.Type,
-				RegexPattern: colRule.Pattern,
-			}
-		}
+	tr := f.config.TableRule(entity.Name)
+	if tr.Count > 0 {
+		totalRows = tr.Count
 	}
 
 	for _, col := range entity.Columns {
@@ -145,13 +136,13 @@ func (f *Feeder) Prepare(
 		entity,
 		entities,
 		bounds,
-		rules,
+		config,
 	)
 
 	return colNames, st, nil
 }
 
-func (f *Feeder) GetTableCount(table string) int64 {
+func (f *Feeder) GetRowCount(table string) int64 {
 	entity, ok := f.entities[table]
 	if !ok {
 		return f.input.Count

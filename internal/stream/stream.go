@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"deed/internal/config"
 	"deed/internal/models"
 	"deed/pkg/calc"
 	"deed/pkg/fake"
@@ -30,15 +31,14 @@ type RowStream interface {
 
 type Stream struct {
 	// Schema & Generator State
-	targetCols     []models.Column
-	rules          map[string]models.GenerationRule
-	totalCount     int64
-	entity         *models.Entity
-	entities       map[string]*models.Entity
-	bounds         *sync.Map
-	countsPerTable map[string]int64
-	uniqueCounter  sync.Map
-	faker          *fake.Fake
+	targetCols    []models.Column
+	totalCount    int64
+	entity        *models.Entity
+	entities      map[string]*models.Entity
+	bounds        *sync.Map
+	uniqueCounter sync.Map
+	faker         *fake.Fake
+	config        *config.Config
 
 	// Concurrency & Channel Buffering
 	batchChan    chan [][]any
@@ -59,14 +59,12 @@ func New(
 	entity *models.Entity,
 	entities map[string]*models.Entity,
 	bounds *sync.Map,
-	rules map[string]models.GenerationRule,
+	config *config.Config,
 ) *Stream {
 	workers := runtime.NumCPU()
 	batchChan := make(chan [][]any, workers*4)
-
 	ctx, cancel := context.WithCancel(ctx)
-
-	baseTime := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	baseTime := time.Now().UTC()
 
 	colKeys := make([]string, len(targetCols))
 	for idx, col := range targetCols {
@@ -77,9 +75,9 @@ func New(
 		targetCols: targetCols,
 		totalCount: totalRows,
 		entity:     entity,
+		config:     config,
 		entities:   entities,
 		bounds:     bounds,
-		rules:      rules,
 		faker:      fake.New(),
 		batchChan:  batchChan,
 		cancel:     cancel,
@@ -87,17 +85,17 @@ func New(
 		colKeys:    colKeys,
 	}
 
-	go st.startWorkerPool(ctx, totalRows, batchSize, workers)
+	go st.startWorkerPool(ctx, batchSize, workers)
 
 	return st
 }
 
-func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSize int, workers int) {
+func (st *Stream) startWorkerPool(ctx context.Context, batchSize int, workers int) {
 	defer close(st.batchChan)
 
 	var wg sync.WaitGroup
 	chunkSize := int64(batchSize)
-	totalBatches := (totalRows + chunkSize - 1) / chunkSize
+	totalBatches := (st.totalCount + chunkSize - 1) / chunkSize
 
 	workChan := make(chan int64, totalBatches)
 	for b := range totalBatches {
@@ -109,7 +107,7 @@ func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSiz
 		wg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
-					errVal := fmt.Errorf("worker had an anxiety attack: %v", r)
+					errVal := fmt.Errorf("stream worker had an anxiety attack: %v", r)
 					if st.err.CompareAndSwap(nil, &errVal) {
 						st.cancel()
 					}
@@ -124,7 +122,7 @@ func (st *Stream) startWorkerPool(ctx context.Context, totalRows int64, batchSiz
 				}
 
 				startRow := batchIdx * chunkSize
-				endRow := min(startRow+chunkSize, totalRows)
+				endRow := min(startRow+chunkSize, st.totalCount)
 				currentBatchSize := endRow - startRow
 
 				batch := make([][]any, currentBatchSize)
@@ -177,10 +175,12 @@ func (st *Stream) Err() error {
 }
 
 func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
+	tr := st.config.TableRule(st.entity.Name)
+
 	// User Rule takes precedence
-	if rule, exists := st.rules[col.Name]; exists {
+	if rule, exists := tr.Columns[col.Name]; exists {
 		if rule.Type == "regex" {
-			val, err := st.faker.Regex(rowIndex, rule.RegexPattern)
+			val, err := st.faker.Regex(rowIndex, rule.Pattern)
 			if err != nil {
 				errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
 				if st.err.CompareAndSwap(nil, &errVal) {

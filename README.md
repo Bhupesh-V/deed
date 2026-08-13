@@ -1,168 +1,174 @@
-# deed
+<div align="center">
+
+# ⚡ deed
+
+**High-performance targeted database seeding for query optimization & performance testing.**
+
+[Key Features](#why) • [Ideal Workflow](#ideal-workflow) • [Configuration](#deed-config) • [Performance](#performance)
+
+</div>
+
+---
 
 ## Why?
 
-- You are scaling and your database is a heavy lifter i.e, you have to constantly optimise your **SQL queries** and **Indexes**.
-- You don't have access to production data due to compliance issues.
-- You are a master procastinator on load testing your APIs.
+* **Optimizing at Scale:** Your app is growing and your database is pulling heavy weight. You need realistic volume to continuously benchmark and refine your **SQL queries** and **indexes**.
+* **Zero Prod Data Access:** You don't have access to production databases due to strict compliance, privacy, or security regulations.
+* **Realistic Load Testing:** You need a quick, painless way to generate massive datasets locally without spending days writing custom seed scripts.
 
-## Why not?
+### Why not?
 
-- You have un-restricted access to the production database.
-- You have enabled strict (or double) validation of business data on API/UI level.
+* You already have unrestricted access to a fully populated, compliant production database dump.
+* Your workflow relies entirely on strict double-validation of business logic at the UI/API layer for test data.
 
-## For whom?
+---
 
-1. Database Engineers.
-2. Data Engineers, Backend Engineers.
+## 📦 Installation
 
-## Installation
+```bash
+# TODO: Not ready for a stable release
+```
 
-TODO
+---
 
-## Database Coverage
+## 🗄️ Database Coverage
 
-### Postgres
+### PostgreSQL
 
-<!-- * **Column Types:**
-  * [x] Numeric *(int, int4, int8, decimal, float, real)*
-  * [x] Character *(varchar, char, text, bpchar)*
-  * [ ] JSONB
-  * [x] ENUM
-  * [x] Time
-  * [x] Arrays
-* **Constraints:**
-  * [x] UNIQUE
-  * [ ] Foreign Key
-    * [x] Simple
-    * [ ] Composite
-    * [ ] Self-Referencing
-  * [ ] CHECK
-  * [ ] EXCLUSION -->
+#### **Column Types**
 
+| Category | Status | Supported Types |
+| :--- | :---: | :--- |
+| **Numeric** | ✅ | `int2`, `int4`, `int8`, `numeric`, `decimal`, `float4`, `float8`, `serial`, `bigserial` |
+| **Character** | ✅ | `varchar`, `char`, `text`, `bpchar` |
+| **Boolean** | ✅ | `boolean` |
+| **UUID** | ✅ | `uuid` |
+| **Arrays** | ✅ | `text[]`, `int[]`, etc. |
+| **Network** | ✅ | `inet`, `cidr`, `macaddr`, `macaddr8` |
+| **Enum** | ✅ | Custom `ENUM` types |
+| **Date & Time** | ⏳ | `date`, `time`, `timetz`, `timestamp`, `timestamptz`, `interval` *(Planned)* |
+| **JSON** | ⏳ | `json`, `jsonb` *(Planned)* |
+| **Binary** | ⏳ | `bytea` *(Planned)* |
+| **Ranges** | ⏳ | `int4range`, `numrange`, `tsrange`, `tstzrange`, `daterange` *(Planned)* |
+| **Full-Text** | ⏳ | `tsvector`, `tsquery` *(Planned)* |
+| **Geometric** | ⏳ | `point`, `line`, `lseg`, `box`, `path`, `polygon`, `circle` *(Planned)* |
+| **Bit Strings** | ⏳ | `bit`, `bit varying` *(Planned)* |
+| **Composite** | ⏳ | User-defined composite types *(Planned)* |
 
-* **Column Types:**
-  * [x] Numeric *(int2/smallint, int4/integer, int8/bigint, numeric/decimal, float4/real, float8/double precision, serial/bigserial)*
-  * [x] Character *(varchar, char, text, bpchar)*
-  * [x] Boolean *(boolean)*
-  * [x] UUID *(uuid)*
-  * [ ] Date & Time *(date, time, timetz, timestamp, timestamptz, interval)*
-  * [ ] JSON *(json, jsonb)*
-  * [ ] Binary *(bytea)*
-  * [x] Arrays *(e.g., text[], int[])*
-  * [x] Network Address *(inet, cidr, macaddr, macaddr8)*
-  * [ ] Ranges & Multiranges *(int4range, numrange, tsrange, tstzrange, daterange)*
-  * [ ] Full-Text Search *(tsvector, tsquery)*
-  * [ ] Geometric *(point, line, lseg, box, path, polygon, circle)*
-  * [ ] Bit Strings *(bit, bit varying)*
-  * [ ] Custom / User-Defined
-    * [x] ENUM
-    * [ ] Composite
+#### **Constraints & Modifiers**
 
-* **Constraints:**
-  * [x] PRIMARY KEY
-  * [x] NOT NULL
-  * [x] UNIQUE
-  * [ ] CHECK
-  * [ ] EXCLUSION
-  * [ ] Foreign Key
-    * [x] Simple
-    * [ ] Composite
-    * [ ] Self-Referencing
-  * [x] DEFAULT Expressions
-  * [x] Identity & Generated Columns
-    * [x] GENERATED AS IDENTITY
-    * [x] GENERATED ALWAYS AS (...) STORED
-  * [ ] Timing Modifiers *(DEFERRABLE, INITIALLY DEFERRED / IMMEDIATE)*
+| Constraint / Feature | Status | Notes / Sub-features |
+| :--- | :---: | :--- |
+| **Primary Key** | ✅ | Supported |
+| **Not Null** | ✅ | Supported |
+| **Unique** | ✅ | Supported |
+| **Default Expressions** | ✅ | Supported |
+| **Generated Columns** | ✅ | `GENERATED AS IDENTITY`, `GENERATED ALWAYS AS (...) STORED` |
+| **Simple Foreign Key** | ✅ | Resolved across parent dependencies |
+| **Composite Foreign Key** | ⏳ | *(Planned)* |
+| **Self-Referencing FK** | ⏳ | *(Planned)* |
+| **Check Constraints** | ⏳ | *(Planned)* |
+| **Exclusion Constraints** | ⏳ | *(Planned)* |
+| **Timing Modifiers** | ⏳ | `DEFERRABLE`, `INITIALLY DEFERRED / IMMEDIATE` *(Planned)* |
 
-## Usage
+---
+
+## 🚀 Usage
 
 ### Ideal Workflow
 
-Since the choice of how you write SQL queries and indexes completely depends on how your UI/UX looks like (which changes often), **each deed run is supposed to be targetted, meaning you don't ingest data in your whole schema in one go and never look back.**
+> [!NOTE]
+> **Targeted Ingestion:** Because SQL queries and index strategies change alongside your UI/UX features, **`deed` is built for targeted iterations**—not for dumping generic data into your entire schema once and forgetting about it.
 
-Instead, your ideal workflow should look like,
+1. **Spin up a clean DB container** with your latest migrations applied.
+2. **Identify target tables** involved in the specific query or feature you are optimizing.
+3. **Seed mock data** into those specific tables (and their required parent dependencies) using `deed`.
+4. **Benchmark & rewrite** your SQL queries and indexes against realistic data scales.
+5. **Destroy the container** and repeat for the next iteration.
 
-1. Start a container with your up-to-date schema applied. Run any and all DDL/DML migrations.
-2. Have list of tables you want to generate data for, these are the tables that you have to optimise your queries/indexes for.
-3. Seed the data using deed.
-4. Rewrite and test your queries/indexes.
-5. Destroy the db container.
-
-Deed can definitely be used to fill up your schema with test data and by extension be used to demo your apps, however that was not my original intent while building it.
+---
 
 ### Deed Config
 
-deed works well if you already have a config setup as per your use-case. Create a `deed.json` file wherever you plan to invoke the deed CLI with the following content.
+To customize how mock data is generated, create a `deed.json` file in your project directory:
 
-```jsonl
+```jsonc
 {
-    "version": "1",
-    "database": {
-        "name": "postgres"
-    },
-    "rules": {
-        "ignore_tables": [
-            "schema_migrations"
-        ],
-        "tables": {
-            "users": {
-                // strict limit on no.of rows that should be ingested in users, this takes precedence over CLI
-                "count": 200,
-                "columns": {
-                    "username": {
-                        "type": "regex",
-                        // define how your business data looks like using RE2 compatible regex expressions
-                        "pattern": "^[a-zA-Z0-9_-]{3,30}$"
-                    },
-                    "password_hash": {
-                        "type": "regex",
-                        "pattern": "^\\$2[ayb]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}$"
-                    }
-                }
-            },
-            "countries": {
-                "count": 50
-            }
+  "version": "1",
+  "database": {
+    "name": "postgres"
+  },
+  "rules": {
+    "ignore_tables": [
+      "schema_migrations"
+    ],
+    "tables": {
+      "users": {
+        // Row count here overrides the CLI flag for this table
+        "count": 200,
+        "columns": {
+          "username": {
+            "type": "regex",
+            // Define business logic requirements using RE2-compatible regex
+            "pattern": "^[a-zA-Z0-9_-]{3,30}$"
+          },
+          "password_hash": {
+            "type": "regex",
+            "pattern": "^\\$2[ayb]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}$"
+          }
         }
+      },
+      "countries": {
+        "count": 50
+      }
     }
+  }
 }
-...
 ```
 
-The config is pretty intutive:
+> [!TIP]
+> Commit your primary `deed.json` to Git so your team shares base generator rules. When working locally, copy it over, adjust row counts/patterns as needed, and feed your local config to `deed`.
 
+---
 
-The **deed config can be committed to a git repository** and shared with your team. However, its higly recommended that you copy your team config first before using deed, tune any parameters and supply the copy to deed, this aligns well with deed's [workflow](#ideal-workflow).
+### Seeding Data
 
-### Seed data
+Ingest 1,000,000 rows into the `app` and `users` tables (along with any required foreign-key parent dependencies):
 
-Ingest a million rows in tables `app` and `users` along with their parents (aka dependencies).
-
-```
+```bash
 deed seed \
- --dsn "postgres://postgres:my_secure_password@127.0.0.1:5433/postgres" \
- --tables=app,users \
- --count=1000000 \
- --config=deed.json
+  --dsn "postgres://postgres:my_secure_password@127.0.0.1:5433/postgres" \
+  --tables=app,users \
+  --count=1000000 \
+  --config=deed.json
 ```
+
+---
 
 ## Performance
 
-Ingestion speed for deed depends on following factors.
+Ingestion throughput is impacted by four core variables:
+1. **Dependency depth** (number of parent tables requiring resolved FK relationships).
+2. **Column complexity** (mix of standard scalars vs. regex/custom types).
+3. **Total column count** per table.
+4. **Database host system specifications**.
 
-1. No.of dependent tables in the schema. 
-2. Variation of column data types.
-3. No.of columns.
-4. Database host resources.
+### Summary from test runs
 
-Having said that here are some reference runs:
+| Target Dataset | Tables Ingested | Total Rows | Execution Time |
+| :--- | :---: | :---: | :---: |
+| **Complex Relational Tree** | 10 tables | **5.00M+** | **16.27s** |
+| **Audit Logs (Single Table)** | 1 table | **20.00M** | **60.08s** |
+| **Massive Flat Ingestion** | 1 table | **67.00M** | **2m 13s** |
 
-### Inserting `1M` rows across 4 tables
+<details>
+<summary><b>View Test Run Output</b></summary>
 
-```
---- Dependencies for 'proof_verifications' ---
+#### Benchmark 1: 1M rows across 5 root tables (10 total resolved dependencies)
 
+```bash
+Dependencies for 'proof_verifications'
+ 
 🔗 proof_verifications
 ╰── 🔗 delivery_proofs
     ╰── 🔗 shipment_tracking_events
@@ -173,53 +179,57 @@ Having said that here are some reference runs:
             ╰── 🔗 user_addresses
                 ├── 🔗 users
                 ╰── 🔗 countries
-
---- Starting Ingestion (9 tables) ---
-
-✅ Inserted 50 rows into countries
-✅ Inserted 200 rows into users
-✅ Inserted 300 rows into orders
-✅ Inserted 1000000 rows into shipping_carriers
-✅ Inserted 1000000 rows into user_addresses
-✅ Inserted 100 rows into shipments
-✅ Inserted 1000000 rows into shipment_tracking_events
-✅ Inserted 1000000 rows into delivery_proofs
-✅ Inserted 100 rows into proof_verifications
-
-real    0m16.064s
-user    0m42.597s
-sys     0m1.887s
+                                    
+Dependencies for 'system_event_logs'                    
+                                    
+🔗 system_event_logs
+                        
+Seeding Data (10 tables)
+                                  
+ countries                     50 / 50      [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       500000 rows/s  ✔ Done
+ users                        200 / 200     [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %        2.00M rows/s  ✔ Done
+ orders                       300 / 300     [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %        3.00M rows/s  ✔ Done
+ system_event_logs        1000000 / 1000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       422353 rows/s  ✔ Done
+ shipping_carriers        1000000 / 1000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       306030 rows/s  ✔ Done
+ user_addresses           1000000 / 1000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       248877 rows/s  ✔ Done
+ shipments                    100 / 100     [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %        1.00M rows/s  ✔ Done
+ shipment_tracking_events 1000000 / 1000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       392016 rows/s  ✔ Done
+ delivery_proofs          1000000 / 1000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       190499 rows/s  ✔ Done
+ proof_verifications          100 / 100     [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %        1.00M rows/s  ✔ Done
+                                                           
+✨ Ingestion complete across all tables. Took 16.27 seconds
+                                                           
 ```
 
+#### Benchmark 2: 20 Million rows in 1 table
 
-### Inserting `20M` rows in 1 table
+```bash
+                                    
+Dependencies for 'system_event_logs'
+                        
+🔗 system_event_logs
 
-```
---- Dependencies for 'audit_logs' ---
-
-🔗 audit_logs
-
---- Starting Ingestion (1 tables) ---
-
-✅ Inserted 20000000 rows into audit_logs
-
-real    0m40.765s
-user    0m30.115s
-sys     0m1.537s
-```
-
-### Inserting `67M` rows in 1 table
+Seeding Data (1 tables)
+                               
+ system_event_logs        20000000 / 20000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       357122 rows/s  ✔ Done
+                                                           
+✨ Ingestion complete across all tables. Took 60.08 seconds
 
 ```
---- Dependencies for 'audit_logs' ---
 
-🔗 audit_logs
+#### Benchmark 3: 67 Million rows in 1 table
 
---- Starting Ingestion (1 tables) ---
+```bash
+Dependencies for 'warehouse_shelf_grid'
+                                       
+🔗 warehouse_shelf_grid
+                       
+Seeding Data (1 tables)
+                       
+ warehouse_shelf_grid     67000000 / 67000000 [━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━] 100 %       880227 rows/s  ✔ Done
+                                                           
+✨ Ingestion complete across all tables. Took 99.01 seconds
 
-✅ Inserted 67000000 rows into audit_logs
-
-real    2m13.385s
-user    1m43.081s
-sys     0m5.010s
 ```
+
+</details>

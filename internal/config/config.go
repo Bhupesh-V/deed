@@ -65,3 +65,11 @@ func (c *Config) LoadFromFile(path string) error {
 
 	return nil
 }
+
+func (c *Config) TableRule(table string) *TableRule {
+	if table != "" {
+		rule := c.Rules.Rules.Tables[table]
+		return &rule
+	}
+	return nil
+}
