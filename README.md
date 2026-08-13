@@ -16,20 +16,17 @@
 * **Zero Prod Data Access:** You don't have access to production databases due to strict compliance, privacy, or security regulations.
 * **Realistic Load Testing:** You need a quick, painless way to generate massive datasets locally without spending days writing custom seed scripts.
 
-### Why not?
+## Why not?
 
 * You already have unrestricted access to a fully populated, compliant production database dump.
 * Your workflow relies entirely on strict double-validation of business logic at the UI/API layer for test data.
 
----
 
 ## 📦 Installation
 
 ```bash
 # TODO: Not ready for a stable release
 ```
-
----
 
 ## 🗄️ Database Coverage
 
@@ -71,7 +68,6 @@
 | **Exclusion Constraints** | ⏳ | *(Planned)* |
 | **Timing Modifiers** | ⏳ | `DEFERRABLE`, `INITIALLY DEFERRED / IMMEDIATE` *(Planned)* |
 
----
 
 ## 🚀 Usage
 
@@ -85,8 +81,6 @@
 3. **Seed mock data** into those specific tables (and their required parent dependencies) using `deed`.
 4. **Benchmark & rewrite** your SQL queries and indexes against realistic data scales.
 5. **Destroy the container** and repeat for the next iteration.
-
----
 
 ### Deed Config
 
@@ -129,8 +123,6 @@ To customize how mock data is generated, create a `deed.json` file in your proje
 > [!TIP]
 > Commit your primary `deed.json` to Git so your team shares base generator rules. When working locally, copy it over, adjust row counts/patterns as needed, and feed your local config to `deed`.
 
----
-
 ### Seeding Data
 
 Ingest 1,000,000 rows into the `app` and `users` tables (along with any required foreign-key parent dependencies):
@@ -143,7 +135,6 @@ deed seed \
   --config=deed.json
 ```
 
----
 
 ## Performance
 
@@ -159,12 +150,12 @@ Ingestion throughput is impacted by four core variables:
 | :--- | :---: | :---: | :---: |
 | **Complex Relational Tree** | 10 tables | **5.00M+** | **16.27s** |
 | **Audit Logs (Single Table)** | 1 table | **20.00M** | **60.08s** |
-| **Massive Flat Ingestion** | 1 table | **67.00M** | **2m 13s** |
+| **Massive Flat Ingestion** | 1 table | **67.00M** | **~1ms** |
 
 <details>
 <summary><b>View Test Run Output</b></summary>
 
-#### Benchmark 1: 1M rows across 5 root tables (10 total resolved dependencies)
+#### Test 1: 1M rows across 5 root tables (10 total resolved dependencies)
 
 ```bash
 Dependencies for 'proof_verifications'
@@ -201,7 +192,7 @@ Seeding Data (10 tables)
                                                            
 ```
 
-#### Benchmark 2: 20 Million rows in 1 table
+#### Test 2: 20 Million rows in 1 table
 
 ```bash
                                     
@@ -217,7 +208,7 @@ Seeding Data (1 tables)
 
 ```
 
-#### Benchmark 3: 67 Million rows in 1 table
+#### Test 3: 67 Million rows in 1 table
 
 ```bash
 Dependencies for 'warehouse_shelf_grid'
