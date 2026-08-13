@@ -24,13 +24,13 @@ TODO
 
 ### Postgres
 
-* **Column Types:**
-  * [x] Numeric *(int and associated types)*
+<!-- * **Column Types:**
+  * [x] Numeric *(int, int4, int8, decimal, float, real)*
   * [x] Character *(varchar, char, text, bpchar)*
   * [ ] JSONB
-  * [ ] ENUM
+  * [x] ENUM
   * [x] Time
-  * [ ] Arrays
+  * [x] Arrays
 * **Constraints:**
   * [x] UNIQUE
   * [ ] Foreign Key
@@ -38,7 +38,42 @@ TODO
     * [ ] Composite
     * [ ] Self-Referencing
   * [ ] CHECK
+  * [ ] EXCLUSION -->
+
+
+* **Column Types:**
+  * [x] Numeric *(int2/smallint, int4/integer, int8/bigint, numeric/decimal, float4/real, float8/double precision, serial/bigserial)*
+  * [x] Character *(varchar, char, text, bpchar)*
+  * [x] Boolean *(boolean)*
+  * [x] UUID *(uuid)*
+  * [ ] Date & Time *(date, time, timetz, timestamp, timestamptz, interval)*
+  * [ ] JSON *(json, jsonb)*
+  * [ ] Binary *(bytea)*
+  * [x] Arrays *(e.g., text[], int[])*
+  * [x] Network Address *(inet, cidr, macaddr, macaddr8)*
+  * [ ] Ranges & Multiranges *(int4range, numrange, tsrange, tstzrange, daterange)*
+  * [ ] Full-Text Search *(tsvector, tsquery)*
+  * [ ] Geometric *(point, line, lseg, box, path, polygon, circle)*
+  * [ ] Bit Strings *(bit, bit varying)*
+  * [ ] Custom / User-Defined
+    * [x] ENUM
+    * [ ] Composite
+
+* **Constraints:**
+  * [x] PRIMARY KEY
+  * [x] NOT NULL
+  * [x] UNIQUE
+  * [ ] CHECK
   * [ ] EXCLUSION
+  * [ ] Foreign Key
+    * [x] Simple
+    * [ ] Composite
+    * [ ] Self-Referencing
+  * [x] DEFAULT Expressions
+  * [x] Identity & Generated Columns
+    * [x] GENERATED AS IDENTITY
+    * [x] GENERATED ALWAYS AS (...) STORED
+  * [ ] Timing Modifiers *(DEFERRABLE, INITIALLY DEFERRED / IMMEDIATE)*
 
 ## Usage
 
