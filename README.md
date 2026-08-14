@@ -7,7 +7,8 @@
 [Key Features](#why) • [Ideal Workflow](#ideal-workflow) • [Configuration](#deed-config) • [Performance](#performance)
 
 
-https://github.com/user-attachments/assets/7cde3be3-6f0d-4b37-8122-e9778a002d33
+
+https://github.com/user-attachments/assets/2868301c-572b-4b92-82a9-5de7853e0002
 
 
 </div>
