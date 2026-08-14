@@ -6,6 +6,10 @@
 
 [Key Features](#why) • [Ideal Workflow](#ideal-workflow) • [Configuration](#deed-config) • [Performance](#performance)
 
+
+https://github.com/user-attachments/assets/7cde3be3-6f0d-4b37-8122-e9778a002d33
+
+
 </div>
 
 ---
