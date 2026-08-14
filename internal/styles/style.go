@@ -1,6 +1,8 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	// Colors
@@ -13,6 +15,10 @@ var (
 		Bold(true).
 		Foreground(primary).
 		MarginBottom(1)
+
+	TitleText = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(primary)
 
 	Label = lipgloss.NewStyle().
 		Bold(true).
@@ -40,4 +46,18 @@ var (
 	Success = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
 
 	Node = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(false)
+
+	Target = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFFFFF")) // Bright White
+
+	// Compact badge specifically for MPB line decorators
+	BarDoneText = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#04B575")).
+			Render(" DONE ")
+
+	BarPendingText = Dim.Render("  ⏳  ") // Match visual width of BarDoneText badge
+
 )

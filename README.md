@@ -2,7 +2,7 @@
 
 # 🌱 deed
 
-`Effortless targeted database seedeing for query optimization & performance testing`
+`Effortless targeted database seeding for query optimization & performance testing`
 
 [Key Features](#why) • [Ideal Workflow](#ideal-workflow) • [Configuration](#deed-config) • [Performance](#performance)
 

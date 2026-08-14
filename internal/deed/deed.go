@@ -91,12 +91,11 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	// Build tree UI & populate dependencies
 	for _, target := range lookUps {
-		fmt.Println(styles.Title.Render(fmt.Sprintf("\nDependencies for '%s'", target)))
+		fmt.Printf("\n%s %s\n",
+			styles.TitleText.Render("Dependencies for"),
+			styles.Target.Render(fmt.Sprintf("'%s'\n", target)),
+		)
 		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
-	}
-
-	if _, err := r.FindIngestionOrder(allEntities, lookUps); err != nil {
-		return fmt.Errorf("schema validation failed: %w", err)
 	}
 
 	tablesToIngest := r.GetRequiredTables(lookUps, allEntities)
@@ -116,8 +115,17 @@ func (d *Deed) Start(ctx context.Context) error {
 
 	fmt.Println(styles.Title.Render(fmt.Sprintf("\nSeeding Data (%d tables)", len(tablesToIngest))))
 
+	maxTableLen := 0
+	for _, table := range tablesToIngest {
+		if len(table) > maxTableLen {
+			maxTableLen = len(table)
+		}
+	}
+
 	for i, table := range tablesToIngest {
 		totalRows := f.GetRowCount(table)
+
+		tableNameFormatted := fmt.Sprintf("%-*s", maxTableLen, table)
 
 		bar, _ := progressContainer.Add(
 			totalRows,
@@ -126,17 +134,18 @@ func (d *Deed) Start(ctx context.Context) error {
 				Tip("🌱").
 				Padding("─").
 				Build(),
+			mpb.BarWidth(25),
 			mpb.BarPriority(1000+i), // Initial placement priority
 			mpb.PrependDecorators(
-				decor.Name(fmt.Sprintf("%-24s", table), decor.WCSyncSpace),
+				decor.Name(tableNameFormatted, decor.WCSyncSpace),
 				decor.CountersNoUnit("%7d / %-7d", decor.WCSyncSpace),
 			),
 			mpb.AppendDecorators(
 				decor.Percentage(decor.WC{W: 5}),
 				newSpeedDecorator(),
 				decor.OnComplete(
-					decor.Name(" "+styles.Dim.Render("⏳"), decor.WCSyncSpace),
-					" "+styles.Success.Render("✔ Done"),
+					decor.Name(styles.BarPendingText, decor.WC{W: 8, C: decor.DextraSpace}),
+					styles.BarDoneText,
 				),
 			),
 		)
