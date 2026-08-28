@@ -110,7 +110,7 @@ CREATE TABLE user_profiles (
     profile_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID NOT NULL UNIQUE,
     first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NULL,
     avatar_url VARCHAR(2048),
     CONSTRAINT fk_user_profile_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
 );

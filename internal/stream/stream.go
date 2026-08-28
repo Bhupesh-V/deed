@@ -176,22 +176,42 @@ func (st *Stream) Err() error {
 
 func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 	tr := st.config.TableRule(st.entity.Name)
+	uniqueCounterKey := st.colKeys[cIdx]
 
-	// User Rule takes precedence
-	if rule, exists := tr.Columns[col.Name]; exists {
-		if rule.Type == "regex" {
-			val, err := st.faker.Regex(rowIndex, rule.Pattern)
-			if err != nil {
-				errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
-				if st.err.CompareAndSwap(nil, &errVal) {
-					st.cancel()
-				}
-			}
-			return val
+	var colRule *config.ColumnRule
+	if tr != nil {
+		if rule, exists := tr.Columns[col.Name]; exists {
+			colRule = &rule
 		}
 	}
 
-	uniqueCounterKey := st.colKeys[cIdx]
+	if colRule != nil && colRule.NullPercentage > 0 {
+		// Clamp input nullPercentage to 100% max
+		targetPct := colRule.NullPercentage
+		if targetPct > 100 {
+			targetPct = 100
+		} else if targetPct < 0 {
+			targetPct = 0
+		}
+
+		// Express percent as a ratio [0.0, 1.0]
+		targetRatio := targetPct / 100.0
+
+		if calc.DeterministicRatio(rowIndex, uniqueCounterKey) < targetRatio {
+			return nil
+		}
+	}
+
+	if colRule != nil && colRule.Type == "regex" {
+		val, err := st.faker.Regex(rowIndex, colRule.Pattern)
+		if err != nil {
+			errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
+			if st.err.CompareAndSwap(nil, &errVal) {
+				st.cancel()
+			}
+		}
+		return val
+	}
 
 	if parentTable, ok := col.FK(); ok {
 		parent := st.entities[parentTable]
@@ -260,7 +280,7 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 			return st.faker.Float(rowIndex, *col.Type.Precision, *col.Type.Scale)
 		}
 
-	case "jsonb":
+	case "jsonb", "json":
 		return json.RawMessage(`{"generated": true}`)
 
 	case "inet":

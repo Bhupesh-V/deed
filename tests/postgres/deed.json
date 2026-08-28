@@ -75,6 +75,13 @@
             },
             "countries": {
                 "count": 50
+            },
+            "user_profiles":{
+                "columns":{
+                    "last_name":{
+                        "nullPercentage": 10
+                    }
+                }
             }
         }
     }

@@ -92,7 +92,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 			SELECT
 				tc.table_schema,
 				tc.table_name,
-				ccu.column_name,
+				kcu.column_name,
 				bool_or(tc.constraint_type = 'PRIMARY KEY') AS is_primary_key,
 				jsonb_agg(
 					jsonb_build_object(
@@ -103,21 +103,22 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 						'check_clause',
 						ch.check_clause,
 						'referenced_table',
-						ref_ccu.table_name,
+						ref_kcu.table_name,
 						'referenced_column',
-						ref_ccu.column_name
+						ref_kcu.column_name
 					)
 				) AS constraints
 			FROM
 				information_schema.table_constraints AS tc
-				JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name
-				AND tc.table_schema = ccu.constraint_schema
+				JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+				AND tc.table_schema = kcu.constraint_schema
 				LEFT JOIN information_schema.check_constraints AS ch ON tc.constraint_name = ch.constraint_name
 				AND tc.table_schema = ch.constraint_schema
 				LEFT JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name
 				AND tc.table_schema = rc.constraint_schema
-				LEFT JOIN information_schema.constraint_column_usage AS ref_ccu ON rc.unique_constraint_name = ref_ccu.constraint_name
-				AND rc.unique_constraint_schema = ref_ccu.table_schema
+				LEFT JOIN information_schema.key_column_usage AS ref_kcu ON rc.unique_constraint_name = ref_kcu.constraint_name
+				AND rc.unique_constraint_schema = ref_kcu.constraint_schema
+				AND kcu.position_in_unique_constraint = ref_kcu.ordinal_position
 			WHERE
 				(
 					ch.check_clause IS NULL
@@ -126,7 +127,7 @@ func (p *postgres) GetEntities(ctx context.Context) ([]models.Entity, error) {
 			GROUP BY
 				tc.table_schema,
 				tc.table_name,
-				ccu.column_name
+				kcu.column_name
 		) AS cons ON c.table_schema = cons.table_schema
 		AND c.table_name = cons.table_name
 		AND c.column_name = cons.column_name

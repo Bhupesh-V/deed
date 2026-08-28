@@ -154,7 +154,7 @@ Ingestion throughput is impacted by four core variables:
 | Target Dataset | Tables Ingested | Total Rows | Execution Time |
 | :--- | :---: | :---: | :---: |
 | **Complex Relational Tree** | 10 tables | **5.00M+** | **16.27s** |
-| **Audit Logs (Single Table)** | 1 table | **20.00M** | **60.08s** |
+| **Single Table** | 1 table | **20.00M** | **60.08s** |
 | **Massive Flat Ingestion** | 1 table | **67.00M** | **~1.5m** |
 
 <details>

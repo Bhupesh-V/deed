@@ -41,6 +41,25 @@ Process:
 - AST parse the CEHCK clause.
 - Try to satisfy the expression using Z3 https://github.com/mitchellh/go-z3.
 
+## Config Approach
+
+The capability to read schema comes with a con of maintaing appropriate user rules for data generation, following are some approaches that we can use to solve this.
+
+
+## Config Auto Generation Rules
+
+
+### Approach 1
+
+`deed config init --dsn=".." --f=file.json`
+- initialise the deed config, talk to the database, create the structure, add any sensible defaults.
+
+`deed config clean --f file.json`
+- remove properties with no values. Useful for making the config easier to digest and share.
+
+### Approach 2
+
+
 
 ## Debugging
 
@@ -145,10 +164,3 @@ JOIN pg_index idx ON idx.indexrelid = c.oid
 LEFT JOIN pg_constraint con ON con.conindid = idx.indexrelid
 WHERE i.schemaname = current_schema();
 ```
-
-
-deed config init --f file.json
-- initialise the deed config, talk to the database, create the structure, add any sensible defaults.
-
-deed config clean --f file.json
-- remove properties with no values. Useful for making the config easier to digest and share.

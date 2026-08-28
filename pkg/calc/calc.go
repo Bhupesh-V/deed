@@ -1,8 +1,12 @@
 package calc
 
 import (
+	"encoding/binary"
+	"hash"
+	"hash/fnv"
 	"math"
 	"math/bits"
+	"sync"
 )
 
 // A massive 64-bit prime number (2 Quintillion - god's chillar)
@@ -118,3 +122,26 @@ func GetNumericDatasetSize(precision, scale, radix int64) int64 {
 // 	result.Add(result, C)
 // 	return result.Mod(result, maxRows)
 // }
+
+var fnvPool = sync.Pool{
+	New: func() any {
+		return fnv.New64a()
+	},
+}
+
+func DeterministicRatio(rowIndex int64, colKey string) float32 {
+	// Fetch any available hasher from pool
+	h := fnvPool.Get().(hash.Hash64)
+	h.Reset()
+	defer fnvPool.Put(h) // Return it for reuse when done
+
+	// Hash target column + row
+	h.Write([]byte(colKey))
+
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], uint64(rowIndex))
+	h.Write(buf[:])
+
+	// Compute ratio [0.0, 1.0)
+	return float32(h.Sum64()&0xFFFFFF) / float32(1<<24)
+}

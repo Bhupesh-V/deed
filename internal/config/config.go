@@ -8,8 +8,9 @@ import (
 
 // ColumnRule represents column-level mock/generation logic.
 type ColumnRule struct {
-	Type    string `json:"type"`
-	Pattern string `json:"pattern,omitempty"`
+	Type           string  `json:"type"`
+	Pattern        string  `json:"pattern,omitempty"`
+	NullPercentage float32 `json:"nullPercentage,omitempty"`
 }
 
 // TableRule represents table-level generation rules.
