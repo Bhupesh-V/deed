@@ -345,3 +345,33 @@ func TestHashCounter_FullRangeUniqueness(t *testing.T) {
 		}
 	}
 }
+
+// ----------------------------------------------------------------------------
+// Single-Threaded Benchmarks
+// ----------------------------------------------------------------------------
+
+func BenchmarkDeterministicRatioPool(b *testing.B) {
+	colKey := "users:email"
+	b.ReportAllocs()
+
+	for i := 0; b.Loop(); i++ {
+		_ = DeterministicRatio(int64(i), colKey)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Parallel Load Benchmarks (Simulating Worker Pool)
+// ----------------------------------------------------------------------------
+
+func BenchmarkDeterministicRatioPool_Parallel(b *testing.B) {
+	colKey := "users:email"
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		var i int64
+		for pb.Next() {
+			i++
+			_ = DeterministicRatio(i, colKey)
+		}
+	})
+}

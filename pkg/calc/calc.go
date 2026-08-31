@@ -1,8 +1,6 @@
 package calc
 
 import (
-	"encoding/binary"
-	"hash"
 	"hash/fnv"
 	"math"
 	"math/bits"
@@ -129,19 +127,33 @@ var fnvPool = sync.Pool{
 	},
 }
 
+// DeterministicRatio calculates a deterministic float32 ratio in [0.0, 1.0) for a given row and column.
+// It uses an inlined 64-bit FNV-1a hash algorithm mapped down to 24-bit floating-point precision.
 func DeterministicRatio(rowIndex int64, colKey string) float32 {
-	// Fetch any available hasher from pool
-	h := fnvPool.Get().(hash.Hash64)
-	h.Reset()
-	defer fnvPool.Put(h) // Return it for reuse when done
+	// 14695981039346656037: Official 64-bit FNV-1a offset basis (initial hash seed state).
+	var h uint64 = 14695981039346656037
 
-	// Hash target column + row
-	h.Write([]byte(colKey))
+	// Hash the bytes of the column identifier (e.g., "users:email").
+	for i := 0; i < len(colKey); i++ {
+		h ^= uint64(colKey[i])
 
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], uint64(rowIndex))
-	h.Write(buf[:])
+		// 1099511628211: Official 64-bit FNV prime multiplier.
+		// Multiplying by this prime scatters bits unpredictably (avalanche effect).
+		h *= 1099511628211
+	}
 
-	// Compute ratio [0.0, 1.0)
-	return float32(h.Sum64()&0xFFFFFF) / float32(1<<24)
+	// Mix the 64-bit row index into the hash state.
+	h ^= uint64(rowIndex)
+
+	// Multiply by the FNV prime a second time to fully scramble the row index bits.
+	h *= 1099511628211
+
+	// 0xFFFFFF (Hex) = 16,777,215 (Decimal) = 24 ones in binary (111111111111111111111111).
+	// Performs a bitwise AND (&) to keep only the lower 24 bits of the 64-bit hash.
+	// 24 bits is chosen because float32 has exactly 24 bits of significand/precision.
+	lower24Bits := h & 0xFFFFFF
+
+	// 1 << 24 = 2^24 = 16,777,216.
+	// Dividing the 24-bit integer by 16,777,216 normalizes the value into a float32 in [0.0, 1.0).
+	return float32(lower24Bits) / float32(1<<24)
 }

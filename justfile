@@ -117,3 +117,13 @@ test:
 # Generate unit-tests coverage report
 coverage:
     go tool cover -html {{COVERAGE_FILE}} -o {{COVERAGE_HTML}}
+
+# Install the deed binary locally in /usr/local/bin
+install: build
+    @echo "==> Deploying binary to /usr/local/bin"
+    @if [ -w /usr/local/bin ]; then \
+            cp deed /usr/local/bin/deed; \
+    else \
+            sudo cp deed /usr/local/bin/deed; \
+    fi
+    @echo "==> Successfully installed binary!"
