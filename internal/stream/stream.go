@@ -272,8 +272,17 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		// TODO: figure out bool Percentage
 		return rowIndex%2 == 0
 
-	case "timestamp", "timestamptz", "date":
+	case "timestamp", "timestamptz":
 		return st.baseTime.Add(time.Duration(rowIndex) * time.Second)
+
+	case "date":
+		return st.baseTime.AddDate(0, 0, int(rowIndex))
+
+	case "time", "timetz":
+		return st.baseTime.Add(time.Duration(rowIndex) * time.Second)
+
+	case "interval":
+		return time.Duration(rowIndex) * time.Second
 
 	case "numeric", "decimal", "float", "real":
 		if col.Type.Precision != nil && col.Type.Scale != nil {

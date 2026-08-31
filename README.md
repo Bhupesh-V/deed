@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/2868301c-572b-4b92-82a9-5de7853e0002
 | **Arrays** | ✅ | `text[]`, `int[]`, etc. |
 | **Network** | ✅ | `inet`, `cidr`, `macaddr`, `macaddr8` |
 | **Enum** | ✅ | Custom `ENUM` types |
-| **Date & Time** | ⏳ | `date`, `time`, `timetz`, `timestamp`, `timestamptz`, `interval` *(Planned)* |
+| **Date & Time** | ✅ | `date`, `time`, `timetz`, `timestamp`, `timestamptz`, `interval` |
 | **JSON** | ⏳ | `json`, `jsonb` *(Planned)* |
 | **Binary** | ⏳ | `bytea` *(Planned)* |
 | **Ranges** | ⏳ | `int4range`, `numrange`, `tsrange`, `tstzrange`, `daterange` *(Planned)* |
