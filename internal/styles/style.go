@@ -44,6 +44,8 @@ var (
 	Dim = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 	// bright green
 	Success = lipgloss.NewStyle().Foreground(lipgloss.Color("78"))
+	// amber
+	Warning = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Bold(true)
 
 	Node = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(false)
 

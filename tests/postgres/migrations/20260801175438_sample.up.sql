@@ -17,6 +17,7 @@ CREATE TABLE system_event_logs (
     service_name VARCHAR(100) NOT NULL,
     log_level system_log_level NOT NULL DEFAULT 'INFO',
     message TEXT NOT NULL,
+    requires_action BOOLEAN NOT NULL DEFAULT FALSE,
     logged_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -203,7 +203,13 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 	}
 
 	if colRule != nil && colRule.Pattern != "" {
-		val, err := st.faker.Regex(rowIndex, colRule.Pattern)
+		var val string
+		var err error
+		if col.HasUniqueConstraint() {
+			val, err = st.faker.UniqueRegex(rowIndex, colRule.Pattern)
+		} else {
+			val, err = st.faker.Regex(rowIndex, colRule.Pattern)
+		}
 		if err != nil {
 			errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
 			if st.err.CompareAndSwap(nil, &errVal) {

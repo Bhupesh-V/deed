@@ -1,6 +1,7 @@
 package fake
 
 import (
+	"deed/pkg/calc"
 	"math"
 	"math/big"
 	"regexp"
@@ -374,7 +375,7 @@ func TestRegex_ConfigPatterns(t *testing.T) {
 				t.Fatalf("invalid regex pattern in test case: %v", err)
 			}
 
-			for idx := int64(0); idx < 50; idx++ {
+			for idx := range int64(50) {
 				val, err := f.Regex(idx, tt.pattern)
 				if err != nil {
 					t.Fatalf("idx %d: unexpected error generating string: %v", idx, err)
@@ -392,5 +393,154 @@ func TestRegex_ConfigPatterns(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEstimateRegexCapacity(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		want    int64
+	}{
+		{
+			// {3,30} caps down to 3-6 chars (see repeatBounds), from a
+			// 64-rune class (a-zA-Z0-9_-): sum of 64^3..64^6.
+			name:    "users.username",
+			pattern: `^[a-zA-Z0-9_-]{3,30}$`,
+			want:    64*64*64 + 64*64*64*64 + 64*64*64*64*64 + 64*64*64*64*64*64,
+		},
+		{
+			// "ORD-" + 8 digits + "-" + 4 digits, both repeats exact (no capping).
+			name:    "orders.order_number",
+			pattern: `^ORD-[0-9]{8}-[0-9]{4}$`,
+			want:    100_000_000 * 10_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := EstimateRegexCapacity(tt.pattern)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("EstimateRegexCapacity(%q) = %d, want %d", tt.pattern, got, tt.want)
+			}
+		})
+	}
+
+	t.Run("invalid pattern errors", func(t *testing.T) {
+		if _, err := EstimateRegexCapacity(`[unterminated`); err == nil {
+			t.Fatal("expected an error for an invalid regex pattern, got nil")
+		}
+	})
+}
+
+// TestUniqueRegex_NoCollisions is the direct regression test for the bug
+// that broke `users` at ~8k of a requested 1,000,000 rows: Regex() had no
+// collision-avoidance, so a UNIQUE column generated from a pattern collided
+// far below its nominal capacity. UniqueRegex must not, up to its capacity.
+func TestUniqueRegex_NoCollisions(t *testing.T) {
+	const pattern = `^[a-zA-Z0-9_-]{3,30}$`
+
+	f := &Fake{}
+	capacity, err := EstimateRegexCapacity(pattern)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	const n = 1_000_000
+	if int64(n) > capacity {
+		t.Fatalf("test assumption violated: n=%d exceeds capacity=%d", n, capacity)
+	}
+
+	re := regexp.MustCompile(pattern)
+	seen := make(map[string]int64, n)
+
+	for idx := range int64(n) {
+		val, err := f.UniqueRegex(idx, pattern)
+		if err != nil {
+			t.Fatalf("idx %d: unexpected error: %v", idx, err)
+		}
+		if !re.MatchString(val) {
+			t.Fatalf("idx %d: generated %q does not match pattern %q", idx, val, pattern)
+		}
+		if prior, dup := seen[val]; dup {
+			t.Fatalf("collision: idx %d and idx %d both produced %q", prior, idx, val)
+		}
+		seen[val] = idx
+	}
+}
+
+// TestUniqueRegex_WrapsAroundDeterministically mirrors
+// TestLetterN_WrapAround: once idx exceeds capacity, output must repeat
+// (not error), and repeat the exact same way every run.
+func TestUniqueRegex_WrapsAroundDeterministically(t *testing.T) {
+	const pattern = `^[A-Z]{2}$` // capacity = 26^2 = 676
+
+	f := &Fake{}
+	capacity, err := EstimateRegexCapacity(pattern)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	first, err := f.UniqueRegex(0, pattern)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wrapped, err := f.UniqueRegex(capacity, pattern)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if first != wrapped {
+		t.Errorf("expected idx 0 and idx %d (capacity) to wrap to the same value, got %q and %q", capacity, first, wrapped)
+	}
+}
+
+// TestUniqueRegex_ClampedCapacityNoCollisions regression-tests a real bug:
+// email's true capacity is astronomically large and clamps to
+// capacityCeiling. That value used to equal calc.LargePrime exactly, which
+// made calc.Permute(idx, capacity) degenerate to (idx*LargePrime)%LargePrime
+// == 0 for every idx — every row collapsed to the identical output.
+func TestUniqueRegex_ClampedCapacityNoCollisions(t *testing.T) {
+	const pattern = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+
+	capacity, err := EstimateRegexCapacity(pattern)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capacity != capacityCeiling {
+		t.Fatalf("test assumption violated: expected this pattern's true capacity to clamp to capacityCeiling, got %d (ceiling=%d)", capacity, capacityCeiling)
+	}
+
+	f := &Fake{}
+	re := regexp.MustCompile(pattern)
+	const n = 262_000
+	seen := make(map[string]int64, n)
+
+	for idx := int64(0); idx < n; idx++ {
+		val, err := f.UniqueRegex(idx, pattern)
+		if err != nil {
+			t.Fatalf("idx %d: unexpected error: %v", idx, err)
+		}
+		if !re.MatchString(val) {
+			t.Fatalf("idx %d: generated %q does not match pattern %q", idx, val, pattern)
+		}
+		if prior, dup := seen[val]; dup {
+			t.Fatalf("collision: idx %d and idx %d both produced %q", prior, idx, val)
+		}
+		seen[val] = idx
+	}
+}
+
+// TestCapacityCeiling_NotMultipleOfLargePrime guards against reintroducing
+// the exact bug above: calc.Permute degenerates whenever its modulus is a
+// multiple of calc.LargePrime (LargePrime is prime, so that's the only way
+// gcd(LargePrime, modulus) != 1).
+func TestCapacityCeiling_NotMultipleOfLargePrime(t *testing.T) {
+	if capacityCeiling%int64(calc.LargePrime) == 0 {
+		t.Fatalf("capacityCeiling (%d) is a multiple of calc.LargePrime (%d) — calc.Permute will degenerate whenever capacity clamps to it", capacityCeiling, calc.LargePrime)
 	}
 }

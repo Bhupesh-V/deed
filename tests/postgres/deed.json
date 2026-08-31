@@ -16,7 +16,7 @@
             }
         },
         "countries": {
-             "count": 50
+            "count": 50
         },
         "currencies": {},
         "delivery_proofs": {
@@ -107,7 +107,13 @@
             }
         },
         "support_tickets": {},
-        "system_event_logs": {},
+        "system_event_logs": {
+            "columns": {
+                "requires_action": {
+                    "truePercentage": 15
+                }
+            }
+        },
         "transactions": {},
         "user_addresses": {
             "columns": {

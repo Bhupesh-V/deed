@@ -3,5 +3,5 @@
 - [ ] Add parallel pg connections.
 - [x] Add progress indicators per table.
 - [x] Add `enum` data type support.
-- [ ] Add support for `deed config init -f deed.json`
-- [ ] Bug: Tables individually supplied via --table args also need to included in ingestion hierarchy (e.g proof_verifications & user_profiles)
+- [x] Add support for `deed config init -f deed.json`
+- [x] Bug: Tables individually supplied via --table args also need to included in ingestion hierarchy (e.g proof_verifications & user_profiles)

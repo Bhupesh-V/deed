@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss/tree"
+	"github.com/dustin/go-humanize"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 	"golang.org/x/sync/errgroup"
@@ -110,6 +111,17 @@ func (d *Deed) Start(ctx context.Context) error {
 		return err
 	}
 
+	for _, c := range f.AutoCappedCounts(tablesToIngest) {
+		fmt.Println(
+			styles.Warning.Render(
+				fmt.Sprintf(
+					"\n\n⚠ [%s] row count reduced from %s to %s (bounded by UNIQUE reference to [%s])",
+					c.Table, humanize.Comma(c.Requested), humanize.Comma(c.Capped), c.ParentTable,
+				),
+			),
+		)
+	}
+
 	progressContainer := mpb.NewWithContext(ctx)
 	bars := make(map[string]*mpb.Bar, len(tablesToIngest))
 
@@ -178,7 +190,7 @@ func (d *Deed) Start(ctx context.Context) error {
 				}
 			}
 
-			colNames, stream, err := f.Prepare(ctx, table, d.input.Count, allEntities, &bounds, d.config)
+			colNames, stream, err := f.Prepare(ctx, table, allEntities, &bounds, d.config)
 			if err != nil {
 				return fmt.Errorf("prepare failed for %s: %w", table, err)
 			}

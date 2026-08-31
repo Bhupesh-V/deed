@@ -146,29 +146,21 @@ func (f *Fake) Float(idx int64, precision, scale int) float64 {
 	return math.Round(rawVal*scaleFactor) / scaleFactor
 }
 
-// Regex generates a deterministic string matching a regex pattern using standard library AST parsing.
+// Regex generates a string matching pattern for row idx, seeded purely by
+// idx so it's deterministic, but with no uniqueness guarantee — repeated
+// idx values will produce the same output. Use this for non-UNIQUE columns;
 func (f *Fake) Regex(idx int64, pattern string) (string, error) {
 	re, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
 		return "", err
 	}
 
-	// Create a standard deterministic generator seeded by row index
 	rng := rand.New(rand.NewSource(idx))
 
 	var sb strings.Builder
 	f.buildRegexString(&sb, re, rng)
 	return sb.String(), nil
 }
-
-// Default bounds for regex generation to keep synthetic data within practical database limits.
-const (
-	maxStarRepetitions     = 4 // OpStar (*): 0 to 3 repetitions (rng.Intn(4))
-	maxPlusExtraCount      = 3 // OpPlus (+): 1 to 3 repetitions (1 + rng.Intn(3))
-	maxUnboundedRepeatCap  = 3 // OpRepeat ({n,}): caps unbounded repeats to min + 3
-	repeatThresholdGap     = 5 // Threshold to detect unbounded or excessively large repeat ranges ({n, m})
-	defaultAnyCharAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.,!@#"
-)
 
 func (f *Fake) buildRegexString(sb *strings.Builder, re *syntax.Regexp, rng *rand.Rand) {
 	switch re.Op {
@@ -221,10 +213,7 @@ func (f *Fake) buildRegexString(sb *strings.Builder, re *syntax.Regexp, rng *ran
 		}
 
 	case syntax.OpRepeat:
-		minR, maxR := re.Min, re.Max
-		if maxR < 0 || maxR > minR+repeatThresholdGap {
-			maxR = minR + maxUnboundedRepeatCap
-		}
+		minR, maxR := repeatBounds(re.Min, re.Max)
 		diff := maxR - minR + 1
 		count := minR + rng.Intn(diff)
 		for range count {
@@ -236,5 +225,250 @@ func (f *Fake) buildRegexString(sb *strings.Builder, re *syntax.Regexp, rng *ran
 
 	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
 		sb.WriteByte(defaultAnyCharAlphabet[rng.Intn(len(defaultAnyCharAlphabet))])
+	}
+}
+
+// UniqueRegex generates a string matching pattern for row idx, guaranteed
+// COLLISION-FREE: every idx in [0, EstimateRegexCapacity(pattern)) maps to a distinct output.
+func (f *Fake) UniqueRegex(idx int64, pattern string) (string, error) {
+	re, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return "", err
+	}
+
+	capacity := max(regexCapacity(re), 1)
+	scrambled := calc.Permute(idx, capacity)
+
+	var sb strings.Builder
+	decodeRegex(&sb, re, scrambled)
+	return sb.String(), nil
+}
+
+// EstimateRegexCapacity returns the exact number of distinct strings
+// UniqueRegex can produce for pattern (see regexCapacity), i.e. the count
+// beyond which row indexes start wrapping around and repeating values.
+// row indexes start wrapping around and repeating values.
+func EstimateRegexCapacity(pattern string) (int64, error) {
+	re, err := syntax.Parse(pattern, syntax.Perl)
+	if err != nil {
+		return 0, err
+	}
+	return regexCapacity(re), nil
+}
+
+// Default bounds for regex generation to keep synthetic data within practical database limits.
+const (
+	maxStarRepetitions     = 4 // OpStar (*): 0 to 3 repetitions
+	maxPlusExtraCount      = 3 // OpPlus (+): 1 to 3 repetitions
+	maxUnboundedRepeatCap  = 3 // OpRepeat ({n,}): caps unbounded repeats to min + 3
+	repeatThresholdGap     = 5 // Threshold to detect unbounded or excessively large repeat ranges ({n, m})
+	defaultAnyCharAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.,!@#"
+
+	// capacityCeiling bounds every intermediate capacity computation well
+	// under math.MaxInt64, leaving headroom so combining two already-clamped
+	// values (multiply or add) can never itself overflow int64. Deliberately
+	// NOT math.MaxInt64/4 or any other multiple of calc.LargePrime: when
+	// capacity clamps to exactly that value, calc.Permute(idx, capacity)
+	// degenerates to (idx*LargePrime) mod LargePrime, which is 0 for every
+	// idx — collapsing every row to the same output instead of scrambling
+	// them apart.
+	capacityCeiling int64 = 1_000_000_000_000_000_000
+)
+
+func safeMul(a, b int64) int64 {
+	if a == 0 || b == 0 {
+		return 0
+	}
+	if a > capacityCeiling/b {
+		return capacityCeiling
+	}
+	return a * b
+}
+
+func safeAdd(a, b int64) int64 {
+	if a > capacityCeiling-b {
+		return capacityCeiling
+	}
+	return a + b
+}
+
+func safePow(base int64, exp int) int64 {
+	result := int64(1)
+	for range exp {
+		result = safeMul(result, base)
+		if result >= capacityCeiling {
+			return capacityCeiling
+		}
+	}
+	return result
+}
+
+// repeatBounds applies the same {min,max} capping used everywhere below, so
+// capacity and decode logic always agree on the reachable repetition range.
+func repeatBounds(minR, maxR int) (int, int) {
+	if maxR < 0 || maxR > minR+repeatThresholdGap {
+		maxR = minR + maxUnboundedRepeatCap
+	}
+	return minR, maxR
+}
+
+// regexCapacity computes the exact number of distinct strings reachable from
+// re, honoring the same repetition caps buildRegexString/decodeRegex use.
+func regexCapacity(re *syntax.Regexp) int64 {
+	switch re.Op {
+	case syntax.OpLiteral:
+		return 1
+
+	case syntax.OpConcat:
+		total := int64(1)
+		for _, sub := range re.Sub {
+			total = safeMul(total, regexCapacity(sub))
+		}
+		return total
+
+	case syntax.OpAlternate:
+		total := int64(0)
+		for _, sub := range re.Sub {
+			total = safeAdd(total, regexCapacity(sub))
+		}
+		return total
+
+	case syntax.OpCharClass:
+		var total int64
+		for i := 0; i < len(re.Rune); i += 2 {
+			total += int64(re.Rune[i+1] - re.Rune[i] + 1)
+		}
+		return total
+
+	case syntax.OpStar:
+		minR, maxR := repeatBounds(0, maxStarRepetitions-1)
+		return repeatCapacity(re.Sub[0], minR, maxR)
+
+	case syntax.OpPlus:
+		minR, maxR := repeatBounds(1, maxPlusExtraCount)
+		return repeatCapacity(re.Sub[0], minR, maxR)
+
+	case syntax.OpQuest:
+		return safeAdd(1, regexCapacity(re.Sub[0]))
+
+	case syntax.OpRepeat:
+		minR, maxR := repeatBounds(re.Min, re.Max)
+		return repeatCapacity(re.Sub[0], minR, maxR)
+
+	case syntax.OpCapture:
+		return regexCapacity(re.Sub[0])
+
+	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
+		return int64(len(defaultAnyCharAlphabet))
+
+	default:
+		return 1
+	}
+}
+
+// repeatCapacity sums the capacity of every reachable repetition count k in
+// [minR,maxR] — each k produces a different-length (hence disjoint) output.
+func repeatCapacity(sub *syntax.Regexp, minR, maxR int) int64 {
+	subCap := regexCapacity(sub)
+	total := int64(0)
+	for k := minR; k <= maxR; k++ {
+		total = safeAdd(total, safePow(subCap, k))
+	}
+	return total
+}
+
+// decodeRegex "unranks" index (0 <= index < regexCapacity(re)) into its
+// corresponding string, mirroring regexCapacity's structure exactly so the
+// two stay in lockstep.
+func decodeRegex(sb *strings.Builder, re *syntax.Regexp, index int64) {
+	switch re.Op {
+	case syntax.OpLiteral:
+		sb.WriteString(string(re.Rune))
+
+	case syntax.OpConcat:
+		decodeConcat(sb, re.Sub, index)
+
+	case syntax.OpAlternate:
+		remaining := index
+		for _, sub := range re.Sub {
+			c := regexCapacity(sub)
+			if remaining < c {
+				decodeRegex(sb, sub, remaining)
+				return
+			}
+			remaining -= c
+		}
+
+	case syntax.OpCharClass:
+		remaining := index
+		for i := 0; i < len(re.Rune); i += 2 {
+			count := int64(re.Rune[i+1] - re.Rune[i] + 1)
+			if remaining < count {
+				sb.WriteRune(re.Rune[i] + rune(remaining))
+				return
+			}
+			remaining -= count
+		}
+
+	case syntax.OpStar:
+		minR, maxR := repeatBounds(0, maxStarRepetitions-1)
+		decodeRepeat(sb, re.Sub[0], index, minR, maxR)
+
+	case syntax.OpPlus:
+		minR, maxR := repeatBounds(1, maxPlusExtraCount)
+		decodeRepeat(sb, re.Sub[0], index, minR, maxR)
+
+	case syntax.OpQuest:
+		if index == 0 {
+			return
+		}
+		decodeRegex(sb, re.Sub[0], index-1)
+
+	case syntax.OpRepeat:
+		minR, maxR := repeatBounds(re.Min, re.Max)
+		decodeRepeat(sb, re.Sub[0], index, minR, maxR)
+
+	case syntax.OpCapture:
+		decodeRegex(sb, re.Sub[0], index)
+
+	case syntax.OpAnyChar, syntax.OpAnyCharNotNL:
+		sb.WriteByte(defaultAnyCharAlphabet[int(index)%len(defaultAnyCharAlphabet)])
+	}
+}
+
+// decodeConcat mixed-radix decodes index across subs, last sub varying
+// fastest — the inverse of the product accumulation in regexCapacity.
+func decodeConcat(sb *strings.Builder, subs []*syntax.Regexp, index int64) {
+	digits := make([]int64, len(subs))
+	remaining := index
+	for i := len(subs) - 1; i >= 0; i-- {
+		c := regexCapacity(subs[i])
+		if c <= 0 {
+			continue
+		}
+		digits[i] = remaining % c
+		remaining /= c
+	}
+	for i, sub := range subs {
+		decodeRegex(sb, sub, digits[i])
+	}
+}
+
+// decodeRepeat picks which repetition-count bucket index falls into (each
+// bucket k has capacity subCap^k), then mixed-radix decodes k copies of sub.
+func decodeRepeat(sb *strings.Builder, sub *syntax.Regexp, index int64, minR, maxR int) {
+	subCap := regexCapacity(sub)
+	remaining := index
+	for k := minR; k <= maxR; k++ {
+		bucketCap := safePow(subCap, k)
+		if remaining < bucketCap {
+			subs := make([]*syntax.Regexp, k)
+			for i := range subs {
+				subs[i] = sub
+			}
+			decodeConcat(sb, subs, remaining)
+			return
+		}
+		remaining -= bucketCap
 	}
 }
