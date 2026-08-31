@@ -8,38 +8,28 @@ import (
 
 // ColumnRule represents column-level mock/generation logic.
 type ColumnRule struct {
-	Type           string  `json:"type"`
-	Pattern        string  `json:"pattern,omitempty"`
-	NullPercentage float32 `json:"nullPercentage,omitempty"`
+	TruePercentage  float32         `json:"truePercentage,omitempty"`
+	FalsePercentage float32         `json:"falsePercentage,omitempty"`
+	NullPercentage  float32         `json:"nullPercentage,omitempty"`
+	Pattern         string          `json:"pattern,omitempty"`
+	Spec            json.RawMessage `json:"spec,omitempty"`
 }
 
 // TableRule represents table-level generation rules.
 type TableRule struct {
-	Count   int64                 `json:"count"`
-	Columns map[string]ColumnRule `json:"columns"`
-}
-
-// DatabaseConfig contains target database engine settings.
-type DatabaseConfig struct {
-	Name string `json:"name"`
-}
-
-// RulesConfig wraps table and ignore settings.
-type RulesConfig struct {
-	IgnoreTables []string             `json:"ignore_tables"`
-	Tables       map[string]TableRule `json:"tables"`
+	Count   int64                 `json:"count,omitempty"`
+	Columns map[string]ColumnRule `json:"columns,omitempty"`
 }
 
 // FileConfig maps directly to the structure of your JSON rule file.
 type FileConfig struct {
-	Version  string         `json:"version"`
-	Database DatabaseConfig `json:"database"`
-	Rules    RulesConfig    `json:"rules"`
+	Version string               `json:"version"`
+	Ignore  []string             `json:"ignore,omitempty"`
+	Tables  map[string]TableRule `json:"tables"`
 }
 
 // Config holds runtime options alongside parsed JSON rules.
 type Config struct {
-	Name  string
 	Rules FileConfig
 }
 
@@ -60,16 +50,13 @@ func (c *Config) LoadFromFile(path string) error {
 	}
 
 	c.Rules = fileCfg
-	if c.Name == "" {
-		c.Name = fileCfg.Database.Name
-	}
 
 	return nil
 }
 
 func (c *Config) TableRule(table string) *TableRule {
 	if table != "" {
-		rule := c.Rules.Rules.Tables[table]
+		rule := c.Rules.Tables[table]
 		return &rule
 	}
 	return nil

@@ -22,7 +22,7 @@ type Feeder struct {
 	batchSize int
 }
 
-func New(db database.Database, config *config.Config, input *models.Input, entities map[string]*models.Entity) (*Feeder, error) {
+func New(db database.Database, config *config.Config, input *models.Input, entities map[string]*models.Entity, tablesToIngest []string) (*Feeder, error) {
 	batchSize := 500
 
 	s := &Feeder{
@@ -33,7 +33,7 @@ func New(db database.Database, config *config.Config, input *models.Input, entit
 		entities:  entities,
 	}
 
-	err := s.validateSchema()
+	err := s.validateSchema(tablesToIngest)
 	if err != nil {
 		return nil, err
 	}
@@ -41,22 +41,27 @@ func New(db database.Database, config *config.Config, input *models.Input, entit
 	return s, nil
 }
 
-func (s *Feeder) validateSchema() error {
+// validateSchema only checks tables that will actually be seeded this run
+// (tablesToIngest), since the rest of the schema won't receive any rows.
+func (s *Feeder) validateSchema(tablesToIngest []string) error {
 	var errs []error
 
-	for _, e := range s.entities {
-		var count int64
-
-		if tableCfg, ok := s.config.Rules.Rules.Tables[e.Name]; ok {
-			if tableCfg.Count > 0 {
-				count = tableCfg.Count
-			} else {
-				count = s.input.Count
-			}
+	for _, table := range tablesToIngest {
+		e, ok := s.entities[table]
+		if !ok {
+			continue
 		}
 
+		count := s.GetRowCount(table)
+
 		for _, col := range e.Columns {
-			// fmt.Println("came here for col", col.Name)
+			// FK columns are resolved against the parent table's row range at
+			// generation time (see stream.generate), not generated from their
+			// own type's cardinality, so they're exempt from this check.
+			if _, isFK := col.FK(); isFK {
+				continue
+			}
+
 			var datasetsize int64
 
 			baseType := strings.ToLower(col.Type.BaseType)
@@ -95,6 +100,28 @@ func (s *Feeder) validateSchema() error {
 	return errors.Join(errs...)
 }
 
+// useDBDefault reports whether a not-null boolean column with a schema
+// default should be left out of the insert entirely, letting the database
+// apply its own default instead of deed generating a value for it. This only
+// kicks in when the user hasn't configured any true/false split for the
+// column — otherwise their config takes precedence.
+func useDBDefault(col models.Column, tr *config.TableRule) bool {
+	if col.Default == nil || col.Nullable {
+		return false
+	}
+
+	if strings.ToLower(col.Type.BaseType) != "bool" {
+		return false
+	}
+
+	rule, ok := tr.Columns[col.Name]
+	if !ok {
+		return true
+	}
+
+	return rule.TruePercentage == 0 && rule.FalsePercentage == 0
+}
+
 func (f *Feeder) Prepare(
 	ctx context.Context,
 	table string,
@@ -122,6 +149,9 @@ func (f *Feeder) Prepare(
 		if col.IsAutoIncrement() {
 			continue
 		}
+		if useDBDefault(col, tr) {
+			continue
+		}
 		targetCols = append(targetCols, col)
 		colNames = append(colNames, col.Name)
 	}
@@ -147,7 +177,7 @@ func (f *Feeder) GetRowCount(table string) int64 {
 	if !ok {
 		return f.input.Count
 	}
-	if tableCfg, ok := f.config.Rules.Rules.Tables[entity.Name]; ok && tableCfg.Count > 0 {
+	if tableCfg, ok := f.config.Rules.Tables[entity.Name]; ok && tableCfg.Count > 0 {
 		return tableCfg.Count
 	}
 	return f.input.Count

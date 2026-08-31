@@ -1,88 +1,151 @@
 {
     "version": "1",
-    "database": {
-        "name": "postgres"
-    },
-    "rules": {
-        "ignore_tables": [
-            "migrations",
-            "schema_migrations"
-        ],
-        "tables": {
-            "users": {
-                "count": 200,
-                "columns": {
-                    "email": {
-                        "type": "regex",
-                        "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-                    },
-                    "username": {
-                        "type": "regex",
-                        "pattern": "^[a-zA-Z0-9_-]{3,30}$"
-                    },
-                    "password_hash": {
-                        "type": "regex",
-                        "pattern": "^\\$2[ayb]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}$"
-                    }
-                }
-            },
-            "orders": {
-                "count": 300,
-                "columns": {
-                    "order_number": {
-                        "type": "regex",
-                        "pattern": "^ORD-[0-9]{8}-[0-9]{4}$"
-                    },
-                    "status": {
-                        "type": "regex",
-                        "pattern": "^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$"
-                    },
-                    "total_amount": {
-                        "type": "regex",
-                        "pattern": "^[0-9]{1,10}\\.[0-9]{2}$"
-                    }
-                }
-            },
-            "shipments": {
-                "count": 100,
-                "columns": {
-                    "tracking_number": {
-                        "type": "regex",
-                        "pattern": "^[A-Z0-9]{8,100}$"
-                    }
-                }
-            },
-            "delivery_proofs": {
-                "columns": {
-                    "recipient_signature_url": {
-                        "type": "regex",
-                        "pattern": "^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?\\.(png|jpg|jpeg|svg)$"
-                    },
-                    "photo_url": {
-                        "type": "regex",
-                        "pattern": "^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?\\.(png|jpg|jpeg|webp)$"
-                    }
-                }
-            },
-            "proof_verifications": {
-                "count": 100,
-                "columns": {
-                    "confidence_score": {
-                        "type": "regex",
-                        "pattern": "^(100\\.00|[0-9]{1,2}\\.[0-9]{2})$"
-                    }
-                }
-            },
-            "countries": {
-                "count": 50
-            },
-            "user_profiles":{
-                "columns":{
-                    "last_name":{
-                        "nullPercentage": 10
-                    }
+    "ignore": [
+        "schema_migrations"
+    ],
+    "tables": {
+        "categories": {
+            "columns": {
+                "description": {
+                    "nullPercentage": 10
+                },
+                "is_visible": {
+                    "truePercentage": 50,
+                    "falsePercentage": 50
                 }
             }
-        }
+        },
+        "countries": {
+             "count": 50
+        },
+        "currencies": {},
+        "delivery_proofs": {
+            "columns": {
+                "photo_url": {
+                    "nullPercentage": 10,
+                    "pattern": "^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?\\.(png|jpg|jpeg|webp)$"
+                },
+                "recipient_signature_url": {
+                    "nullPercentage": 10,
+                    "pattern": "^https?://[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}(/.*)?\\.(png|jpg|jpeg|svg)$"
+                }
+            }
+        },
+        "inventory": {},
+        "order_invoices": {},
+        "order_items": {},
+        "orders": {
+            "count": 300,
+            "columns": {
+                "order_number": {
+                    "pattern": "^ORD-[0-9]{8}-[0-9]{4}$"
+                },
+                "status": {
+                    "pattern": "^(PENDING|PAID|SHIPPED|COMPLETED|CANCELLED)$"
+                },
+                "total_amount": {
+                    "pattern": "^[0-9]{1,10}\\.[0-9]{2}$"
+                }
+            }
+        },
+        "product_variants": {
+            "columns": {
+                "attribute_json": {
+                    "spec": {}
+                }
+            }
+        },
+        "products": {},
+        "promotional_discounts": {},
+        "proof_verifications": {
+            "count": 100,
+            "columns": {
+                "confidence_score": {
+                    "pattern": "^(100\\.00|[0-9]{1,2}\\.[0-9]{2})$"
+                },
+                "verified_by_system": {
+                    "truePercentage": 50,
+                    "falsePercentage": 50
+                }
+            }
+        },
+        "reviews": {
+            "columns": {
+                "comment": {
+                    "nullPercentage": 10
+                }
+            }
+        },
+        "search_index_keywords": {
+            "columns": {
+                "synonyms": {
+                    "nullPercentage": 10
+                }
+            }
+        },
+        "shipment_tracking_events": {},
+        "shipments": {
+            "count": 100,
+            "columns": {
+                "tracking_number": {
+                    "pattern": "^[A-Z0-9]{8,100}$"
+                },
+                "dispatched_at": {
+                    "nullPercentage": 10
+                }
+            }
+        },
+        "shipping_carriers": {
+            "columns": {
+                "is_active": {
+                    "truePercentage": 50,
+                    "falsePercentage": 50
+                },
+                "support_phone": {
+                    "nullPercentage": 10
+                }
+            }
+        },
+        "support_tickets": {},
+        "system_event_logs": {},
+        "transactions": {},
+        "user_addresses": {
+            "columns": {
+                "is_default": {
+                    "truePercentage": 50,
+                    "falsePercentage": 50
+                }
+            }
+        },
+        "user_profiles": {
+            "columns": {
+                "avatar_url": {
+                    "nullPercentage": 10
+                },
+                "last_name": {
+                    "nullPercentage": 10
+                }
+            }
+        },
+        "users": {
+            "count": 200,
+            "columns": {
+                "email": {
+                    "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+                },
+                "username": {
+                    "pattern": "^[a-zA-Z0-9_-]{3,30}$"
+                },
+                "password_hash": {
+                    "pattern": "^\\$2[ayb]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}$"
+                },
+                "is_active": {
+                    "truePercentage": 50,
+                    "falsePercentage": 50
+                }
+            }
+        },
+        "warehouse_shelf_grid": {},
+        "warehouses": {}
     }
 }

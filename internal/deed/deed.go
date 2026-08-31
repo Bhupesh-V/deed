@@ -105,7 +105,7 @@ func (d *Deed) Start(ctx context.Context) error {
 		ready[table] = make(chan struct{})
 	}
 
-	f, err := feeder.New(d.db, d.config, d.input, allEntities)
+	f, err := feeder.New(d.db, d.config, d.input, allEntities, tablesToIngest)
 	if err != nil {
 		return err
 	}

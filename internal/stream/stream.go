@@ -202,7 +202,7 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		}
 	}
 
-	if colRule != nil && colRule.Type == "regex" {
+	if colRule != nil && colRule.Pattern != "" {
 		val, err := st.faker.Regex(rowIndex, colRule.Pattern)
 		if err != nil {
 			errVal := fmt.Errorf("failed to generate regex pattern for column %s: %v", col.Name, err)
@@ -269,7 +269,33 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		return uuid.SeqIdToUUID(uint64(rowIndex))
 
 	case "bool":
-		// TODO: figure out bool Percentage
+		if colRule != nil && (colRule.TruePercentage > 0 || colRule.FalsePercentage > 0) {
+			// NullPercentage already claimed its own bucket in the null check
+			// above (and, if row was null, we never reach here). True gets the
+			// next bucket right after it; whatever remains is False. Only one
+			// of TruePercentage/FalsePercentage needs to be set — the other is
+			// inferred as the remainder.
+			nullPct := colRule.NullPercentage
+			if nullPct < 0 {
+				nullPct = 0
+			} else if nullPct > 100 {
+				nullPct = 100
+			}
+
+			truePct := colRule.TruePercentage
+			if truePct == 0 {
+				truePct = 100 - nullPct - colRule.FalsePercentage
+			}
+			if truePct < 0 {
+				truePct = 0
+			} else if truePct > 100-nullPct {
+				truePct = 100 - nullPct
+			}
+
+			trueThreshold := (nullPct + truePct) / 100.0
+			return calc.DeterministicRatio(rowIndex, uniqueCounterKey) < trueThreshold
+		}
+
 		return rowIndex%2 == 0
 
 	case "timestamp", "timestamptz":
@@ -290,6 +316,9 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		}
 
 	case "jsonb", "json":
+		if colRule != nil && len(colRule.Spec) > 0 {
+			return colRule.Spec
+		}
 		return json.RawMessage(`{"generated": true}`)
 
 	case "inet":

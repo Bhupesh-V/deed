@@ -1,0 +1,38 @@
+{
+    "version": "1",
+    "ignore": [
+        "migrations",
+        "schema_migrations"
+    ],
+    "tables": {
+        "countries": {
+            "count": 50
+        },
+        "table1": {
+            "columns": {
+                "column1": {
+                    "truePercentage": 50,
+                    "falsePercentage": 20,
+                    "nullPercentage": 30
+                },
+                "column2": {
+                    "nullPercentage": 20
+                },
+                "column3": {
+                    "pattern": "^ORD-[0-9]{8}-[0-9]{4}$",
+                    "nullPercentage": 34
+                },
+                "column4": {
+                    "nullPercentage": 34
+                },
+                "column5": {
+                    "nullPercentage": 34
+                },
+                "column6": {
+                    "nullPercentage": 34,
+                    "spec":{"key": "value"}
+                }
+            }
+        }
+    }
+}
