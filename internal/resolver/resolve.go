@@ -50,7 +50,7 @@ func (r *Resolver) GetDependencyTreeUI(tableName string, tables map[string]*mode
 	}
 
 	// Create the root node for this sub-tree
-	t := tree.New().Root(styles.Node.Render("🔗 " + tableName))
+	t := tree.New().Root(styles.Node.Render(tableName))
 
 	// Stop recursion if already visited on this branch to avoid infinite cycles
 	if visited[tableName] {

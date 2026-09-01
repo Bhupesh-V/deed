@@ -94,7 +94,7 @@ func (d *Deed) Start(ctx context.Context) error {
 	for _, target := range lookUps {
 		fmt.Printf("\n%s %s\n",
 			styles.TitleText.Render("Dependencies for"),
-			styles.Target.Render(fmt.Sprintf("'%s'\n", target)),
+			styles.Target.Render(fmt.Sprintf("%s\n", target)),
 		)
 		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
 	}
