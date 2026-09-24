@@ -13,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/dustin/go-humanize"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
@@ -96,7 +95,7 @@ func (d *Deed) Start(ctx context.Context) error {
 			styles.TitleText.Render("Dependencies for"),
 			styles.Target.Render(fmt.Sprintf("%s\n", target)),
 		)
-		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil).Enumerator(tree.RoundedEnumerator))
+		fmt.Println(r.GetDependencyTreeUI(target, allEntities, nil))
 	}
 
 	tablesToIngest := r.GetRequiredTables(lookUps, allEntities)

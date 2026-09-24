@@ -220,6 +220,19 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 	}
 
 	if parentTable, ok := col.FK(); ok {
+		if parentTable == st.entity.Name {
+			// Self-referencing FKs aren't resolved (planned, not yet supported) — the
+			// column's own table's bounds aren't populated until after this table finishes
+			// ingesting, so resolving it here would use bogus zero bounds. Leave it NULL
+			if !col.Nullable {
+				errVal := fmt.Errorf("column %s.%s is a NOT NULL self-referencing FK, which isn't supported yet", st.entity.Name, col.Name)
+				if st.err.CompareAndSwap(nil, &errVal) {
+					st.cancel()
+				}
+			}
+			return nil
+		}
+
 		parent := st.entities[parentTable]
 
 		actual, _ := st.uniqueCounter.LoadOrStore(uniqueCounterKey, new(atomic.Int64))
@@ -320,6 +333,12 @@ func (st *Stream) generate(cIdx int, col models.Column, rowIndex int64) any {
 		if col.Type.Precision != nil && col.Type.Scale != nil {
 			return st.faker.Float(rowIndex, *col.Type.Precision, *col.Type.Scale)
 		}
+
+	case "bytea":
+		if col.Nullable {
+			return nil
+		}
+		return fmt.Appendf(nil, "generated-%d", rowIndex)
 
 	case "jsonb", "json":
 		if colRule != nil && len(colRule.Spec) > 0 {
